@@ -1,19 +1,20 @@
 import pygame
 from source.constants import *
 
+
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, row, grid, ice=False):
+    def __init__(self, x, y, row, grid, ice=False, splash=False):
         super().__init__()
         self.x = x
         self.y = y
         self.row = row
         self.grid = grid
         self.ice = ice
+        self.splash = splash
         self.speed = BULLET_SPEED
         self.damage = BULLET_DAMAGE
-        self.radius = 8
+        self.radius = 8 if not splash else 14
         self.alive = True
-        self.y = grid.offset_y + row * grid.cell_h + grid.cell_h // 2
 
     def update(self, dt):
         self.x += self.speed
@@ -21,22 +22,44 @@ class Bullet(pygame.sprite.Sprite):
             self.alive = False
 
     def draw(self, surface):
-        color = (100, 200, 255) if self.ice else (0, 200, 0)
-        pygame.draw.circle(surface, color, (int(self.x), int(self.y)), self.radius)
-        if self.ice:
-            pygame.draw.circle(surface, (200, 230, 255), (int(self.x), int(self.y)), self.radius - 3)
+        if self.splash:
+            # Winter melon: large green sphere with stripes
+            pygame.draw.circle(surface, WATERMELON_COLOR, (int(self.x), int(self.y)), self.radius)
+            pygame.draw.circle(surface, (30, 100, 30), (int(self.x), int(self.y)), self.radius, 2)
+            if self.ice:
+                pygame.draw.circle(surface, ICE_BLUE, (int(self.x), int(self.y)), self.radius - 4)
+        elif self.ice:
+            pygame.draw.circle(surface, (100, 200, 255), (int(self.x), int(self.y)), self.radius)
+            pygame.draw.circle(surface, WHITE, (int(self.x), int(self.y)), self.radius - 3)
+        else:
+            pygame.draw.circle(surface, (0, 200, 0), (int(self.x), int(self.y)), self.radius)
 
     def check_collision(self, zombies):
         for z in zombies:
-            if z.row == self.row:
-                dist = abs(self.x - z.x)
-                if dist < 30:
+            dist = abs(self.x - z.x)
+            col_dist = abs(z.row - self.row)
+            if dist < 30 and col_dist == 0:
+                if self.splash:
+                    # Splash damage to all zombies in radius (adjacent rows too)
+                    for z2 in zombies:
+                        z2_dist = abs(self.x - z2.x)
+                        z2_row = abs(z2.row - self.row)
+                        if z2_dist < MELON_SPLASH_RADIUS and z2_row <= 1:
+                            z2.take_damage(self.damage)
+                            if self.ice:
+                                z2.apply_slow()
+                    # Single target gets hit by the main bullet too
+                    z.take_damage(self.damage)
+                    if self.ice:
+                        z.apply_slow()
+                else:
                     hit = z.take_damage(self.damage)
                     if self.ice:
                         z.apply_slow()
-                    self.alive = False
-                    return z
+                self.alive = False
+                return z
         return None
+
 
 class ExplosionEffect:
     def __init__(self, x, y):
@@ -60,6 +83,28 @@ class ExplosionEffect:
         color = (255, 50, 50) if self.radius < 40 else (255, 150, 0)
         pygame.draw.circle(surface, color, (int(self.x), int(self.y)), self.radius)
 
+
+class IceBlastEffect:
+    """Ice Shroom freezes all zombies on screen."""
+    def __init__(self):
+        self.timer = 0
+        self.duration = 1.5
+        self.alive = True
+        self.freeze_radius = 2000  # whole screen
+
+    def update(self, dt):
+        self.timer += dt
+        if self.timer >= self.duration:
+            self.alive = False
+
+    def draw(self, surface):
+        # Screen-wide ice overlay
+        alpha = int(80 * (1.0 - self.timer / self.duration))
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((150, 220, 255, alpha))
+        surface.blit(overlay, (0, 0))
+
+
 class SunParticle:
     def __init__(self, x, y):
         self.x = x
@@ -68,14 +113,12 @@ class SunParticle:
         self.duration = 0.5
         self.alive = True
         self.radius = 15
-        self.floating = False
 
     def update(self, dt):
         self.timer += dt
         if self.timer < self.duration:
             self.y -= 0.5
         else:
-            self.floating = True
             self.y += 0.3
 
     def draw(self, surface):

@@ -5,7 +5,7 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
-from source.component.bullet import Bullet, ExplosionEffect, SunParticle
+from source.component.bullet import Bullet, ExplosionEffect, IceBlastEffect, SunParticle
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
 
@@ -35,9 +35,9 @@ class LevelState:
                        for r in range(GRID_ROWS)]
         self.sound = SoundManager.get_instance()
         self.start_time = time_module.time()
-        # Preview plant (ghost) at mouse position
         self.preview_row = None
         self.preview_col = None
+        self.ice_blast_effect = None
 
     def get_stats(self):
         elapsed = time_module.time() - self.start_time
@@ -50,6 +50,20 @@ class LevelState:
             'plants_placed': self.plants_placed,
             'time_elapsed': f'{mins:02d}:{secs:02d}',
         }
+
+    def _build_events(self):
+        """Build event list for plants to react to."""
+        events = []
+        for z in self.zombies:
+            if not z.dead:
+                events.append({
+                    'type': 'zombie_near',
+                    'row': z.row,
+                    'col': int((z.x - self.grid.offset_x) / self.grid.cell_w),
+                    'dead': z.dead,
+                    'zombie': z,
+                })
+        return events
 
     def start_wave(self, wave_idx):
         wave = WAVES[wave_idx]
@@ -111,12 +125,10 @@ class LevelState:
             if z.dead and z.death_timer > 0.6:
                 self.zombies.remove(z)
 
+        events = self._build_events()
+
         for b in self.bullets[:]:
-            prev_alive = b.alive
             b.update(dt)
-            if prev_alive and not b.alive:
-                # bullet hit something and died
-                pass
             if not b.alive:
                 self.bullets.remove(b)
 
@@ -125,35 +137,74 @@ class LevelState:
             if not e.alive:
                 self.particles.remove(e)
 
+        # Ice blast effect
+        if self.ice_blast_effect:
+            self.ice_blast_effect.update(dt)
+            if not self.ice_blast_effect.alive:
+                self.ice_blast_effect = None
+
+        # Update plants
         for row in range(GRID_ROWS):
             for col in range(GRID_COLS):
                 p = self.grid.cells[row][col]
-                if p:
-                    action = p.update(dt, [])
-                    if action == 'produce_sun':
-                        x = p.rect.centerx + random.randint(-20, 20)
-                        y = p.rect.centery - 20
-                        self.sun_particles.append(SunParticle(x, y))
-                        self.sound.play('sun_appear')
-                    elif action == 'shoot':
-                        bx = p.rect.right
-                        by = p.rect.centery
-                        ice = (p.name == 'snowpea')
-                        shots = 2 if p.name == 'repeater' else 1
-                        for _ in range(shots):
-                            self.bullets.append(Bullet(bx, by, row, self.grid, ice))
-                            self.sound.play('shoot')
-                    elif action == 'explode':
-                        cx, cy = p.rect.centerx, p.rect.centery
-                        self.particles.append(ExplosionEffect(cx, cy))
-                        self.sound.play('explode')
-                        for z in self.zombies[:]:
-                            if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
+                if p is None:
+                    continue
+
+                action = p.update(dt, events)
+
+                if action == 'produce_sun':
+                    x = p.rect.centerx + random.randint(-20, 20)
+                    y = p.rect.centery - 20
+                    self.sun_particles.append(SunParticle(x, y))
+                    self.sound.play('sun_appear')
+
+                elif action == 'shoot':
+                    bx = p.rect.right
+                    by = p.rect.centery
+                    ice = (p.name in ('snowpea', 'wintermelon'))
+                    splash = (p.name == 'wintermelon')
+                    shots = 2 if p.name == 'repeater' else 1
+                    for _ in range(shots):
+                        self.bullets.append(Bullet(bx, by, row, self.grid, ice, splash))
+                    self.sound.play('shoot')
+
+                elif action == 'explode':
+                    cx, cy = p.rect.centerx, p.rect.centery
+                    self.particles.append(ExplosionEffect(cx, cy))
+                    self.sound.play('explode')
+                    for z in self.zombies[:]:
+                        if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
+                            z.take_damage(999)
+                            if z.dead:
+                                self.zombies_killed += 1
+                    self.grid.remove_plant(p.row, p.col)
+
+                elif action == 'squash_damage':
+                    # Squash AOE damage
+                    cx = p.rect.centerx
+                    cy = p.rect.centery
+                    self.particles.append(ExplosionEffect(cx, cy))
+                    self.sound.play('explode')
+                    for z in self.zombies[:]:
+                        if z.row == p.row:
+                            dist = abs(z.x - cx)
+                            if dist < 80:
                                 z.take_damage(999)
                                 if z.dead:
                                     self.zombies_killed += 1
-                        self.grid.remove_plant(p.row, p.col)
+                    self.grid.remove_plant(p.row, p.col)
 
+                elif action == 'ice_blast':
+                    # Ice Shroom: freeze ALL zombies on screen
+                    self.ice_blast_effect = IceBlastEffect()
+                    self.sound.play('explode')
+                    for z in self.zombies:
+                        if not z.dead:
+                            z.apply_slow()
+                            z.apply_slow()  # double slow
+                    self.grid.remove_plant(p.row, p.col)
+
+        # Chomper eating
         for row in range(GRID_ROWS):
             for col in range(GRID_COLS):
                 p = self.grid.cells[row][col]
@@ -173,7 +224,7 @@ class LevelState:
                 self.pre_wave_timer = 5.0
 
     def handle_click(self, mx, my):
-        # Check shovel click first
+        # Check shovel
         if self.menubar.is_shovel_at(mx, my):
             self.menubar.shovel_selected = not self.menubar.shovel_selected
             self.menubar.selected = None
@@ -187,6 +238,7 @@ class LevelState:
                     self.menubar.shovel_selected = False
             return
 
+        # Card click
         card = self.menubar.get_card_at(mx, my)
         if card:
             if self.menubar.can_afford(card) and self.menubar.is_ready(card):
@@ -217,7 +269,6 @@ class LevelState:
                 self.sound.play('plant')
 
     def handle_mouse_move(self, mx, my):
-        """Update plant placement preview."""
         if self.menubar.selected:
             row, col = self.grid.get_cell_from_mouse(mx, my)
             self.preview_row = row
@@ -230,7 +281,7 @@ class LevelState:
         surface.fill((30, 80, 30))
         self.grid.draw(surface)
 
-        # Plant placement preview (ghost)
+        # Plant preview
         if self.menubar.selected and self.preview_row is not None:
             row, col = self.preview_row, self.preview_col
             if self.grid.can_plant(row, col):
@@ -238,13 +289,11 @@ class LevelState:
                 ghost_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
                 cfg = PLANTS[self.menubar.selected]
                 color = cfg['color']
-                ghost_color = (*color, 100)  # semi-transparent
-                pygame.draw.rect(ghost_surf, ghost_color, ghost_surf.get_rect())
+                pygame.draw.rect(ghost_surf, (*color, 100), ghost_surf.get_rect())
                 pygame.draw.circle(ghost_surf, (*color, 150), (rect.width // 2, rect.height // 2), 20)
                 pygame.draw.rect(ghost_surf, (*color, 80), ghost_surf.get_rect(), 2)
                 surface.blit(ghost_surf, rect.topleft)
             elif row is not None:
-                # Invalid cell — red tint
                 rect = self.grid.get_cell_rect(row, col)
                 ghost_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
                 pygame.draw.rect(ghost_surf, (255, 0, 0, 60), ghost_surf.get_rect())
@@ -264,18 +313,18 @@ class LevelState:
             b.draw(surface)
         for e in self.particles:
             e.draw(surface)
+        if self.ice_blast_effect:
+            self.ice_blast_effect.draw(surface)
         for sp in self.sun_particles:
             sp.draw(surface)
         self.menubar.draw(surface)
 
-        # Wave info
         font = pygame.font.Font(None, 28)
         wave_text = font.render(f'Wave: {self.wave_index+1}/{self.total_waves}', True, WHITE)
         surface.blit(wave_text, (SCREEN_WIDTH - 150, 30))
         kill_text = font.render(f'Kills: {self.zombies_killed}', True, WHITE)
         surface.blit(kill_text, (SCREEN_WIDTH - 150, 55))
 
-        # Pre-wave countdown
         if not self.wave_active and not self.victory and not self.game_over and self.pre_wave_timer > 0:
             count_font = pygame.font.Font(None, 72)
             count_text = count_font.render(str(int(self.pre_wave_timer) + 1), True, (255, 100, 100))

@@ -5,7 +5,7 @@ class Menubar:
     def __init__(self):
         self.sun = SUN_VALUE
         self.card_panel_h = 100
-        self.card_list = list(PLANTS.keys())[:6]
+        self.card_list = list(PLANTS.keys())[:8]
         self.selected = None
         self.shovel_selected = False
         # Per-card cooldown timers (seconds remaining)
