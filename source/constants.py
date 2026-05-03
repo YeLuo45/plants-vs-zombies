@@ -20,11 +20,18 @@ BG_COLOR = (50, 150, 50)
 GRID_LINE_COLOR = (30, 100, 30)
 CARD_BG_COLOR = (50, 50, 50)
 CARD_SELECTED = (100, 200, 100)
+CARD_COOLDOWN = (30, 30, 30)
 SUN_BG_COLOR = (255, 255, 100)
 TEXT_COLOR = (255, 255, 255)
 RED = (200, 50, 50)
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+GREEN = (0, 200, 0)
+YELLOW = (255, 255, 0)
+ORANGE = (255, 165, 0)
+GRAY = (120, 120, 120)
+BROWN = (139, 90, 43)
+LAWN_MOWER_COLOR = (0, 180, 0)
 
 # Sun
 SUN_VALUE = 50
@@ -33,6 +40,11 @@ SUN_DROP_INTERVAL = 10
 # UI
 MENUBAR_HEIGHT = 80
 CARD_PANEL_Y = SCREEN_HEIGHT - 100
+CARD_W = 70
+CARD_H = 80
+CARD_GAP = 10
+SHOVEL_W = 60
+SHOVEL_H = 60
 
 # ============================================================
 # Game Content Constants
@@ -59,14 +71,26 @@ ZOMBIES = {
     'football':{'hp': 300, 'speed': 0.5, 'attack': 20, 'interval': 0.5, 'color': (80, 80, 80),    'w': 55, 'h': 75, 'desc': 'Football Zombie'},
 }
 
-# Wave definitions
+# 10-wave progressive difficulty
 WAVES = [
-    {'zombies': [('basic', 3), ('cone', 2)], 'spawn_delay': 3.0},
-    {'zombies': [('basic', 4), ('cone', 3), ('bucket', 1)], 'spawn_delay': 2.5},
-    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 2)], 'spawn_delay': 2.0},
+    {'zombies': [('basic', 3), ('cone', 2)],               'spawn_delay': 3.0},
+    {'zombies': [('basic', 4), ('cone', 3)],               'spawn_delay': 3.0},
+    {'zombies': [('basic', 4), ('cone', 3), ('bucket', 1)],'spawn_delay': 2.5},
+    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 1)], 'spawn_delay': 2.5},
+    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 2), ('football', 1)], 'spawn_delay': 2.0},
+    {'zombies': [('basic', 6), ('cone', 4), ('bucket', 2), ('pole', 2), ('football', 2)], 'spawn_delay': 2.0},
+    {'zombies': [('basic', 6), ('cone', 5), ('bucket', 3), ('pole', 3), ('football', 2)], 'spawn_delay': 1.5},
+    {'zombies': [('basic', 7), ('cone', 5), ('bucket', 4), ('pole', 3), ('football', 3)], 'spawn_delay': 1.5},
+    {'zombies': [('basic', 8), ('cone', 6), ('bucket', 4), ('pole', 4), ('football', 3)], 'spawn_delay': 1.0},
+    {'zombies': [('basic', 10), ('cone', 8), ('bucket', 5), ('pole', 5), ('football', 4)], 'spawn_delay': 1.0},
 ]
 
 # Bullet stats
 BULLET_DAMAGE = 20
 BULLET_SPEED = 5
 ICE_SLOW_FACTOR = 0.5
+
+# Lawn mower
+MOWER_POS_X = GRID_OFFSET_X - 5
+MOWER_WIDTH = 25
+MOWER_HEIGHT = 35
