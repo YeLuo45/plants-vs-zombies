@@ -1,0 +1,33 @@
+import pygame
+
+# Display
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# Grid
+GRID_ROWS = 5
+GRID_COLS = 9
+GRID_OFFSET_X = 50   # left margin for lawn
+GRID_OFFSET_Y = 100  # top margin
+CELL_WIDTH = (SCREEN_WIDTH - GRID_OFFSET_X) // GRID_COLS  # ~83
+CELL_HEIGHT = (SCREEN_HEIGHT - GRID_OFFSET_Y - 80) // GRID_ROWS  # ~80
+
+# Colors
+BG_COLOR = (50, 150, 50)        # lawn green
+GRID_LINE_COLOR = (30, 100, 30)
+CARD_BG_COLOR = (50, 50, 50)
+CARD_SELECTED = (100, 200, 100)
+SUN_BG_COLOR = (255, 255, 100)
+TEXT_COLOR = (255, 255, 255)
+RED = (200, 50, 50)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+
+# Sun
+SUN_VALUE = 50           # starting sun
+SUN_DROP_INTERVAL = 10  # seconds between free sun drops
+
+# UI
+MENUBAR_HEIGHT = 80
+CARD_PANEL_Y = SCREEN_HEIGHT - 100
