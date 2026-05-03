@@ -1,4 +1,4 @@
-.name: Upload EXE to Release
+name: Upload EXE to Release
 
 on:
   workflow_dispatch:
