@@ -1,6 +1,7 @@
 import pygame
 import random
 import time as time_module
+import math
 from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
@@ -224,6 +225,36 @@ class LevelState:
                 self.pre_wave_timer = 5.0
 
     def handle_click(self, mx, my):
+        # Check mallet
+        if self.menubar.is_mallet_at(mx, my):
+            if self.menubar.can_use_mallet():
+                self.menubar.mallet_selected = not self.menubar.mallet_selected
+                self.menubar.selected = None
+                self.menubar.shovel_selected = False
+            return
+
+        # Mallet mode: click zombie to smash
+        if self.menubar.mallet_selected:
+            # Check if click is on a zombie
+            for z in self.zombies:
+                if not z.dead:
+                    dx = mx - z.x
+                    dy = my - z.y
+                    if abs(dx) < z.w // 2 + 10 and abs(dy) < z.h // 2 + 10:
+                        # Smash zombie!
+                        if self.menubar.use_mallet():
+                            z.take_damage(9999)
+                            if z.dead:
+                                self.zombies_killed += 1
+                            # Mallet smash effect
+                            self.particles.append(MalletSmashEffect(z.x, z.y))
+                            self.sound.play('explode')
+                        self.menubar.mallet_selected = False
+                        return
+            # Clicked empty area — deselect
+            self.menubar.mallet_selected = False
+            return
+
         # Check shovel
         if self.menubar.is_shovel_at(mx, my):
             self.menubar.shovel_selected = not self.menubar.shovel_selected
@@ -330,6 +361,64 @@ class LevelState:
             count_text = count_font.render(str(int(self.pre_wave_timer) + 1), True, (255, 100, 100))
             count_rect = count_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
             surface.blit(count_text, count_rect)
+
+
+class MalletSmashEffect:
+    """Stars + cracks particle effect when mallet hits zombie."""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.timer = 0
+        self.duration = 0.5
+        self.alive = True
+        # Generate crack lines
+        self.cracks = []
+        import random
+        for _ in range(6):
+            angle = random.uniform(0, 6.28)
+            length = random.randint(15, 35)
+            self.cracks.append((angle, length))
+        self.stars = []
+        for _ in range(8):
+            self.stars.append({
+                'x': random.uniform(-30, 30),
+                'y': random.uniform(-30, 30),
+                'size': random.uniform(3, 7),
+                'vx': random.uniform(-80, 80),
+                'vy': random.uniform(-120, -40),
+            })
+
+    def update(self, dt):
+        self.timer += dt
+        if self.timer >= self.duration:
+            self.alive = False
+        for s in self.stars:
+            s['x'] += s['vx'] * dt
+            s['y'] += s['vy'] * dt
+            s['vy'] += 200 * dt  # gravity
+
+    def draw(self, surface):
+        frac = self.timer / self.duration
+        alpha = int(255 * (1 - frac))
+        if alpha <= 0:
+            return
+        # Draw cracks
+        crack_surf = pygame.Surface((100, 100), pygame.SRCALPHA)
+        for angle, length in self.cracks:
+            progress = min(1.0, frac * 2)
+            l = int(length * progress)
+            ex = 50 + int(l * (1 if angle < 3.14 else -1) * abs(math.cos(angle)))
+            ey = 50 + int(l * (1 if angle < 1.57 or angle > 4.71 else -1) * abs(math.sin(angle)))
+            pygame.draw.line(crack_surf, (100, 80, 60, alpha), (50, 50), (ex, ey), 2)
+        surface.blit(crack_surf, (int(self.x) - 50, int(self.y) - 50))
+        # Draw stars
+        for s in self.stars:
+            star_alpha = max(0, alpha - int(frac * 150))
+            if star_alpha <= 0:
+                continue
+            pygame.draw.circle(surface, (255, 220, 50, star_alpha),
+                             (int(self.x + s['x']), int(self.y + s['y'])),
+                             max(1, int(s['size'] * (1 - frac))))
 
 
 class LawnMower:
