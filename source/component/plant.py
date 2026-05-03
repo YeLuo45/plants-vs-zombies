@@ -58,6 +58,9 @@ class Plant(pygame.sprite.Sprite):
         # Hypno Shroom
         self.hypno_active = False
 
+        # Ladder (plant can be laddered by ladder zombie)
+        self.laddered = False
+
         # Scaredy Shroom
         self.hidden = False
         self.sun_timer_scaredy = 0

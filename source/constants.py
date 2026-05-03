@@ -78,22 +78,26 @@ ZOMBIES = {
     'basic':    {'hp': 100, 'speed': 0.3, 'attack': 10, 'interval': 0.5, 'color': (100, 150, 100), 'w': 50, 'h': 70, 'desc': 'Zombie'},
     'cone':     {'hp': 200, 'speed': 0.3, 'attack': 10, 'interval': 0.5, 'color': (255, 150, 0),   'w': 50, 'h': 70, 'desc': 'Conehead Zombie'},
     'bucket':   {'hp': 400, 'speed': 0.3, 'attack': 10, 'interval': 0.5, 'color': (150, 150, 150),  'w': 50, 'h': 70, 'desc': 'Buckethead Zombie'},
-    'pole':     {'hp': 100, 'speed': 0.6, 'attack': 10, 'interval': 0.5, 'color': (150, 100, 200), 'w': 50, 'h': 70, 'desc': 'Pole Vaulting Zombie'},
+    'pole':     {'hp': 100, 'speed': 0.5, 'attack': 10, 'interval': 0.5, 'color': (150, 100, 200), 'w': 50, 'h': 70, 'desc': 'Pole Vaulting Zombie'},
     'football': {'hp': 300, 'speed': 0.5, 'attack': 20, 'interval': 0.5, 'color': (80, 80, 80),    'w': 55, 'h': 75, 'desc': 'Football Zombie'},
+    # P2-A new zombies
+    'newspaper': {'hp': 100, 'speed': 0.3, 'attack': 10, 'interval': 0.5, 'color': (120, 100, 140), 'w': 50, 'h': 70, 'desc': 'Newspaper Zombie'},
+    'miner':    {'hp': 100, 'speed': 0.5, 'attack': 10, 'interval': 0.5, 'color': (100, 80, 60),   'w': 50, 'h': 70, 'desc': 'Digger Zombie'},
+    'ladder':   {'hp': 100, 'speed': 0.3, 'attack': 10, 'interval': 0.5, 'color': (100, 140, 100), 'w': 50, 'h': 70, 'desc': 'Ladder Zombie'},
 }
 
-# 10-wave progressive difficulty
+# 10-wave progressive difficulty (includes 8 zombie types)
 WAVES = [
-    {'zombies': [('basic', 3), ('cone', 2)],                'spawn_delay': 3.0},
-    {'zombies': [('basic', 4), ('cone', 3)],                'spawn_delay': 3.0},
-    {'zombies': [('basic', 4), ('cone', 3), ('bucket', 1)], 'spawn_delay': 2.5},
-    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 1)], 'spawn_delay': 2.5},
-    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 2), ('football', 1)], 'spawn_delay': 2.0},
-    {'zombies': [('basic', 6), ('cone', 4), ('bucket', 2), ('pole', 2), ('football', 2)], 'spawn_delay': 2.0},
-    {'zombies': [('basic', 6), ('cone', 5), ('bucket', 3), ('pole', 3), ('football', 2)], 'spawn_delay': 1.5},
-    {'zombies': [('basic', 7), ('cone', 5), ('bucket', 4), ('pole', 3), ('football', 3)], 'spawn_delay': 1.5},
-    {'zombies': [('basic', 8), ('cone', 6), ('bucket', 4), ('pole', 4), ('football', 3)], 'spawn_delay': 1.0},
-    {'zombies': [('basic', 10), ('cone', 8), ('bucket', 5), ('pole', 5), ('football', 4)], 'spawn_delay': 1.0},
+    {'zombies': [('basic', 3), ('cone', 2)],                                                       'spawn_delay': 3.0},
+    {'zombies': [('basic', 4), ('cone', 3)],                                                       'spawn_delay': 3.0},
+    {'zombies': [('basic', 4), ('cone', 3), ('bucket', 1)],                                         'spawn_delay': 2.5},
+    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 1)],                           'spawn_delay': 2.5},
+    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 2), ('football', 1)],          'spawn_delay': 2.0},
+    {'zombies': [('basic', 6), ('cone', 4), ('bucket', 2), ('pole', 2), ('football', 2), ('newspaper', 1)], 'spawn_delay': 2.0},
+    {'zombies': [('basic', 6), ('cone', 5), ('bucket', 3), ('pole', 3), ('football', 2), ('newspaper', 2)], 'spawn_delay': 1.5},
+    {'zombies': [('basic', 7), ('cone', 5), ('bucket', 4), ('pole', 3), ('football', 3), ('newspaper', 2), ('ladder', 1)], 'spawn_delay': 1.5},
+    {'zombies': [('basic', 8), ('cone', 6), ('bucket', 4), ('pole', 4), ('football', 3), ('newspaper', 3), ('ladder', 2), ('miner', 1)], 'spawn_delay': 1.0},
+    {'zombies': [('basic', 10), ('cone', 8), ('bucket', 5), ('pole', 5), ('football', 4), ('newspaper', 4), ('ladder', 3), ('miner', 2)], 'spawn_delay': 1.0},
 ]
 
 # Bullet stats
