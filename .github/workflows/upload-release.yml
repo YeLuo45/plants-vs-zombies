@@ -8,6 +8,9 @@ on:
         required: true
         default: '25275778727'
 
+permissions:
+  contents: write
+
 jobs:
   upload:
     runs-on: ubuntu-latest
