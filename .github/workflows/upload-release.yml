@@ -1,0 +1,27 @@
+.name: Upload EXE to Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_id:
+        description: 'Artifact ID to upload'
+        required: true
+        default: '6769751589'
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifact
+        run: |
+          gh run download ${{ inputs.artifact_id }} --name PlantsVsZombies-win64 -D ./exe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./exe/PlantsVsZombies.exe
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
