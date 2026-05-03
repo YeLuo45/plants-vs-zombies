@@ -116,3 +116,6 @@ class Menubar:
 
     def is_ready(self, name):
         return self.cooldowns[name] <= 0
+
+    def add_sun(self, amount):
+        self.sun += amount

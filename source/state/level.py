@@ -1,11 +1,14 @@
 import pygame
 import random
+import time as time_module
 from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
 from source.component.bullet import Bullet, ExplosionEffect, SunParticle
 from source.component.menubar import Menubar
+from source.component.sound_manager import SoundManager
+
 
 class LevelState:
     def __init__(self, screen):
@@ -26,10 +29,27 @@ class LevelState:
         self.victory = False
         self.total_waves = len(WAVES)
         self.zombies_killed = 0
+        self.plants_placed = 0
         self.pre_wave_timer = 5.0
-        # Lawn mowers (one per row, at left edge of lawn)
         self.mowers = [LawnMower(GRID_OFFSET_X - 30, GRID_OFFSET_Y + r * CELL_HEIGHT + CELL_HEIGHT // 2)
                        for r in range(GRID_ROWS)]
+        self.sound = SoundManager.get_instance()
+        self.start_time = time_module.time()
+        # Preview plant (ghost) at mouse position
+        self.preview_row = None
+        self.preview_col = None
+
+    def get_stats(self):
+        elapsed = time_module.time() - self.start_time
+        mins = int(elapsed // 60)
+        secs = int(elapsed % 60)
+        return {
+            'waves_completed': self.wave_index,
+            'total_waves': self.total_waves,
+            'zombies_killed': self.zombies_killed,
+            'plants_placed': self.plants_placed,
+            'time_elapsed': f'{mins:02d}:{secs:02d}',
+        }
 
     def start_wave(self, wave_idx):
         wave = WAVES[wave_idx]
@@ -66,6 +86,7 @@ class LevelState:
             x = random.randint(GRID_OFFSET_X, GRID_OFFSET_X + GRID_COLS * CELL_WIDTH)
             y = random.randint(GRID_OFFSET_Y, GRID_OFFSET_Y + GRID_ROWS * CELL_HEIGHT)
             self.sun_particles.append(SunParticle(x, y))
+            self.sound.play('sun_appear')
 
         for sp in self.sun_particles[:]:
             sp.update(dt)
@@ -76,14 +97,13 @@ class LevelState:
             mower.update(dt, self)
 
         for z in self.zombies[:]:
-            # Check if zombie reaches mower trigger zone
             if not z.dead:
-                row = z.row
-                mower = self.mowers[row]
-                # Zombie reaches the mower position
-                if z.x <= GRID_OFFSET_X - 10 and not mower.activated and mower.alive:
-                    mower.trigger()
-                # Zombie drives past mower and reaches home
+                if z.x <= GRID_OFFSET_X - 10:
+                    row = z.row
+                    mower = self.mowers[row]
+                    if not mower.activated and mower.alive:
+                        mower.trigger()
+                        self.sound.play('lawnmower')
                 if z.x < GRID_OFFSET_X - 60:
                     self.game_over = True
 
@@ -92,7 +112,11 @@ class LevelState:
                 self.zombies.remove(z)
 
         for b in self.bullets[:]:
+            prev_alive = b.alive
             b.update(dt)
+            if prev_alive and not b.alive:
+                # bullet hit something and died
+                pass
             if not b.alive:
                 self.bullets.remove(b)
 
@@ -110,6 +134,7 @@ class LevelState:
                         x = p.rect.centerx + random.randint(-20, 20)
                         y = p.rect.centery - 20
                         self.sun_particles.append(SunParticle(x, y))
+                        self.sound.play('sun_appear')
                     elif action == 'shoot':
                         bx = p.rect.right
                         by = p.rect.centery
@@ -117,12 +142,16 @@ class LevelState:
                         shots = 2 if p.name == 'repeater' else 1
                         for _ in range(shots):
                             self.bullets.append(Bullet(bx, by, row, self.grid, ice))
+                            self.sound.play('shoot')
                     elif action == 'explode':
                         cx, cy = p.rect.centerx, p.rect.centery
                         self.particles.append(ExplosionEffect(cx, cy))
+                        self.sound.play('explode')
                         for z in self.zombies[:]:
                             if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
                                 z.take_damage(999)
+                                if z.dead:
+                                    self.zombies_killed += 1
                         self.grid.remove_plant(p.row, p.col)
 
         for row in range(GRID_ROWS):
@@ -131,7 +160,9 @@ class LevelState:
                 if p and p.name == 'chomper':
                     for z in self.zombies:
                         if z.row == row and not p.eating:
-                            p.try_eat_zombie(z)
+                            ate = p.try_eat_zombie(z)
+                            if ate:
+                                self.sound.play('chomper')
 
         if self.wave_active and not self.wave_zombies_remaining and not self.zombies:
             self.wave_active = False
@@ -142,7 +173,7 @@ class LevelState:
                 self.pre_wave_timer = 5.0
 
     def handle_click(self, mx, my):
-        # Check shovel click
+        # Check shovel click first
         if self.menubar.is_shovel_at(mx, my):
             self.menubar.shovel_selected = not self.menubar.shovel_selected
             self.menubar.selected = None
@@ -165,24 +196,61 @@ class LevelState:
                 self.menubar.selected = None
             return
 
+        # Sun collection
         for sp in self.sun_particles[:]:
             dx = mx - sp.x
             dy = my - sp.y
             if dx * dx + dy * dy < 400:
                 self.menubar.add_sun(25)
                 self.sun_particles.remove(sp)
+                self.sound.play('sun_collect')
                 return
 
+        # Plant placement
         if self.menubar.selected:
             row, col = self.grid.get_cell_from_mouse(mx, my)
             if self.grid.can_plant(row, col):
                 plant = create_plant(self.menubar.selected, row, col, self.grid)
                 self.grid.place_plant(plant, row, col)
                 self.menubar.spend(self.menubar.selected)
+                self.plants_placed += 1
+                self.sound.play('plant')
+
+    def handle_mouse_move(self, mx, my):
+        """Update plant placement preview."""
+        if self.menubar.selected:
+            row, col = self.grid.get_cell_from_mouse(mx, my)
+            self.preview_row = row
+            self.preview_col = col
+        else:
+            self.preview_row = None
+            self.preview_col = None
 
     def draw(self, surface):
         surface.fill((30, 80, 30))
         self.grid.draw(surface)
+
+        # Plant placement preview (ghost)
+        if self.menubar.selected and self.preview_row is not None:
+            row, col = self.preview_row, self.preview_col
+            if self.grid.can_plant(row, col):
+                rect = self.grid.get_cell_rect(row, col)
+                ghost_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                cfg = PLANTS[self.menubar.selected]
+                color = cfg['color']
+                ghost_color = (*color, 100)  # semi-transparent
+                pygame.draw.rect(ghost_surf, ghost_color, ghost_surf.get_rect())
+                pygame.draw.circle(ghost_surf, (*color, 150), (rect.width // 2, rect.height // 2), 20)
+                pygame.draw.rect(ghost_surf, (*color, 80), ghost_surf.get_rect(), 2)
+                surface.blit(ghost_surf, rect.topleft)
+            elif row is not None:
+                # Invalid cell — red tint
+                rect = self.grid.get_cell_rect(row, col)
+                ghost_surf = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(ghost_surf, (255, 0, 0, 60), ghost_surf.get_rect())
+                pygame.draw.rect(ghost_surf, (255, 0, 0, 120), ghost_surf.get_rect(), 2)
+                surface.blit(ghost_surf, rect.topleft)
+
         for mower in self.mowers:
             mower.draw(surface)
         for row in range(GRID_ROWS):
@@ -199,11 +267,15 @@ class LevelState:
         for sp in self.sun_particles:
             sp.draw(surface)
         self.menubar.draw(surface)
+
+        # Wave info
         font = pygame.font.Font(None, 28)
         wave_text = font.render(f'Wave: {self.wave_index+1}/{self.total_waves}', True, WHITE)
         surface.blit(wave_text, (SCREEN_WIDTH - 150, 30))
         kill_text = font.render(f'Kills: {self.zombies_killed}', True, WHITE)
         surface.blit(kill_text, (SCREEN_WIDTH - 150, 55))
+
+        # Pre-wave countdown
         if not self.wave_active and not self.victory and not self.game_over and self.pre_wave_timer > 0:
             count_font = pygame.font.Font(None, 72)
             count_text = count_font.render(str(int(self.pre_wave_timer) + 1), True, (255, 100, 100))
@@ -231,7 +303,6 @@ class LawnMower:
         if self.x > SCREEN_WIDTH + 50:
             self.alive = False
             return
-        # Kill zombies in same row
         for z in level.zombies[:]:
             if z.row == self._get_row() and not z.dead:
                 if abs(z.x - self.x) < 35:
