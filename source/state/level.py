@@ -6,7 +6,12 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
-from source.component.bullet import Bullet, ExplosionEffect, IceBlastEffect, SunParticle
+from source.component.bullet import Bullet, IceBlastEffect, SunParticle
+from source.component.effects import (
+    ZombieDeathEffect, IceShatterEffect, NewspaperShredEffect,
+    CherryBombExplosion, SquashSmashEffect, PlantGrowEffect,
+    WalkingZombieAnimator
+)
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
 
@@ -65,6 +70,15 @@ class LevelState:
                     'zombie': z,
                 })
         return events
+
+    def _spawn_zombie_death(self, zombie):
+        """Spawn appropriate death effect for a zombie."""
+        from source.component.effects import ZombieDeathEffect, IceShatterEffect
+        if zombie.slow_timer > 0:
+            # Ice shatter instead of regular death
+            self.particles.append(IceShatterEffect(zombie.x, zombie.y))
+        else:
+            self.particles.append(ZombieDeathEffect(zombie))
 
     def start_wave(self, wave_idx):
         wave = WAVES[wave_idx]
@@ -130,6 +144,36 @@ class LevelState:
 
         for b in self.bullets[:]:
             b.update(dt)
+            # Bullet-zombie collision
+            for z in self.zombies:
+                if z.dead:
+                    continue
+                dist = abs(b.x - z.x)
+                row_dist = abs(z.row - b.row)
+                if dist < 30 and row_dist == 0:
+                    if b.splash:
+                        for z2 in self.zombies:
+                            z2_dist = abs(b.x - z2.x)
+                            z2_row = abs(z2.row - b.row)
+                            if z2_dist < MELON_SPLASH_RADIUS and z2_row <= 1:
+                                killed = z2.take_damage(b.damage)
+                                if z2.dead:
+                                    self.zombies_killed += 1
+                                    self._spawn_zombie_death(z2)
+                                if b.ice:
+                                    z2.apply_slow()
+                        z.killed = z.take_damage(b.damage)
+                        if b.ice:
+                            z.apply_slow()
+                    else:
+                        killed = z.take_damage(b.damage)
+                        if z.dead:
+                            self.zombies_killed += 1
+                            self._spawn_zombie_death(z)
+                        if b.ice:
+                            z.apply_slow()
+                    b.alive = False
+                    break
             if not b.alive:
                 self.bullets.remove(b)
 
@@ -171,7 +215,7 @@ class LevelState:
 
                 elif action == 'explode':
                     cx, cy = p.rect.centerx, p.rect.centery
-                    self.particles.append(ExplosionEffect(cx, cy))
+                    self.particles.append(CherryBombExplosion(cx, cy, self.grid, p.row))
                     self.sound.play('explode')
                     for z in self.zombies[:]:
                         if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
@@ -184,7 +228,7 @@ class LevelState:
                     # Squash AOE damage
                     cx = p.rect.centerx
                     cy = p.rect.centery
-                    self.particles.append(ExplosionEffect(cx, cy))
+                    self.particles.append(SquashSmashEffect(cx, cy))
                     self.sound.play('explode')
                     for z in self.zombies[:]:
                         if z.row == p.row:
@@ -297,6 +341,8 @@ class LevelState:
                 self.grid.place_plant(plant, row, col)
                 self.menubar.spend(self.menubar.selected)
                 self.plants_placed += 1
+                from source.component.effects import PlantGrowEffect
+                self.particles.append(PlantGrowEffect(plant.x, plant.y, plant.color))
                 self.sound.play('plant')
 
     def handle_mouse_move(self, mx, my):

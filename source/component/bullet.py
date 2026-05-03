@@ -1,5 +1,7 @@
 import pygame
 from source.constants import *
+import random
+import math
 
 
 class Bullet(pygame.sprite.Sprite):
