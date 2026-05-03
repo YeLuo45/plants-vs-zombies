@@ -27,6 +27,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ./exe/PlantsVsZombies.exe
+          tag: v1.0.0
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
