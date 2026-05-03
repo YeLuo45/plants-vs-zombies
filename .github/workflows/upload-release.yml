@@ -3,10 +3,10 @@ name: Upload EXE to Release
 on:
   workflow_dispatch:
     inputs:
-      artifact_id:
-        description: 'Artifact ID to upload'
+      run_id:
+        description: 'Build run ID with artifact'
         required: true
-        default: '6769751589'
+        default: '25275778727'
 
 jobs:
   upload:
@@ -19,7 +19,7 @@ jobs:
           
       - name: Download Artifact
         run: |
-          gh run download ${{ inputs.artifact_id }} --name PlantsVsZombies-win64 -D ./exe
+          gh run download ${{ inputs.run_id }} --name PlantsVsZombies-win64 -D ./exe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
