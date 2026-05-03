@@ -12,6 +12,11 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
+      - name: Clone repo
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          
       - name: Download Artifact
         run: |
           gh run download ${{ inputs.artifact_id }} --name PlantsVsZombies-win64 -D ./exe
