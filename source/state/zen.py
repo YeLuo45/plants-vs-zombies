@@ -4,6 +4,7 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.bullet import SunParticle
+from source.state.achievements import AchievementManager, StatsManager
 
 
 ZEN_BG = (20, 80, 30)
@@ -136,6 +137,7 @@ class ZenState:
                 plant = create_plant(self.selected, row, col, self.grid)
                 self.grid.place_plant(plant, row, col)
                 self.plants_placed += 1
+                StatsManager.get_instance().on_plant_placed()
                 self.selected = None
 
     def handle_mouse_move(self, mx, my):

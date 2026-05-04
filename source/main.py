@@ -3,7 +3,7 @@ import sys
 import time as time_module
 from source.constants import *
 from source.state.level import LevelState
-from source.state.achievements import AchievementManager
+from source.state.achievements import AchievementManager, AchievementPanel, StatsPanel, StatsManager
 from source.state.save_system import SaveManager, SettingsState, LoadScreen
 from source.state.leaderboard import LeaderboardManager
 from source.component.sound_manager import SoundManager
@@ -24,6 +24,7 @@ class Game:
         self.sound = SoundManager.get_instance()
         self.ach = AchievementManager.get_instance()
         self.sm = SaveManager.get_instance()
+        self.stm = StatsManager.get_instance()
         self.leaderboard = LeaderboardManager.get_instance()
         self.font_large = pygame.font.Font(None, 72)
         self.font_medium = pygame.font.Font(None, 48)
@@ -34,23 +35,28 @@ class Game:
         self._build_pause_buttons()
         self._build_end_buttons()
         self.show_ach_panel = False
+        self.show_stats_panel = False
+        self.ach_panel = None
+        self.stats_panel = None
         self.settings = None
         self.load_screen = None
         self.pending_mode = None  # mode to start after load
         self.save_enabled = True  # can save current game
         self.show_leaderboard = False  # for endless game over screen
+        self._session_start_time = time_module.time()
 
     def _build_menu_buttons(self):
         bw, bh = 200, 55
         bx = SCREEN_WIDTH // 2 - bw // 2
         self.menu_buttons = [
-            ('adventure',  pygame.Rect(bx, 240, bw, bh)),
-            ('endless',    pygame.Rect(bx, 305, bw, bh)),
-            ('zen',        pygame.Rect(bx, 370, bw, bh)),
-            ('bowling',    pygame.Rect(bx, 435, bw, bh)),
+            ('adventure',  pygame.Rect(bx, 230, bw, bh)),
+            ('endless',    pygame.Rect(bx, 295, bw, bh)),
+            ('zen',        pygame.Rect(bx, 360, bw, bh)),
+            ('bowling',    pygame.Rect(bx, 425, bw, bh)),
         ]
         self.ach_btn = pygame.Rect(SCREEN_WIDTH - 130, 40, 120, 40)
-        self.load_btn = pygame.Rect(SCREEN_WIDTH // 2 - bw // 2, 500, bw, 45)
+        self.stats_btn = pygame.Rect(SCREEN_WIDTH - 130, 90, 120, 40)
+        self.load_btn = pygame.Rect(SCREEN_WIDTH // 2 - bw // 2, 495, bw, 45)
         self.settings_btn = pygame.Rect(SCREEN_WIDTH - 50, 10, 40, 40)
 
     def _build_pause_buttons(self):
@@ -83,6 +89,18 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self._handle_escape()
+                elif event.key in (pygame.K_a, pygame.K_j):
+                    # Open achievements panel
+                    if not self.show_ach_panel and not self.show_stats_panel:
+                        self.ach_panel = AchievementPanel(self.ach)
+                        self.show_ach_panel = True
+                elif event.key == pygame.K_s:
+                    # Open stats panel
+                    if not self.show_ach_panel and not self.show_stats_panel:
+                        self.stats_panel = StatsPanel(self.ach, self.stm)
+                        self.show_stats_panel = True
+                elif self.show_ach_panel and self.ach_panel:
+                    self.ach_panel.handle_key(event.key)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = event.pos
                 self._handle_click(mx, my)
@@ -93,6 +111,11 @@ class Game:
     def _handle_escape(self):
         if self.show_ach_panel:
             self.show_ach_panel = False
+            self.ach_panel = None
+            return
+        if self.show_stats_panel:
+            self.show_stats_panel = False
+            self.stats_panel = None
             return
         if self.settings:
             self.settings = None
@@ -119,7 +142,17 @@ class Game:
 
     def _handle_click(self, mx, my):
         if self.show_ach_panel:
-            self.show_ach_panel = False
+            result = self.ach_panel.handle_click(mx, my)
+            if result == 'close':
+                self.show_ach_panel = False
+                self.ach_panel = None
+            return
+
+        if self.show_stats_panel:
+            result = self.stats_panel.handle_click(mx, my)
+            if result == 'close':
+                self.show_stats_panel = False
+                self.stats_panel = None
             return
 
         # Settings overlay
@@ -150,7 +183,13 @@ class Game:
                     return
             if self.ach_btn.collidepoint(mx, my):
                 self.sound.play('click')
+                self.ach_panel = AchievementPanel(self.ach)
                 self.show_ach_panel = True
+                return
+            if self.stats_btn.collidepoint(mx, my):
+                self.sound.play('click')
+                self.stats_panel = StatsPanel(self.ach, self.stm)
+                self.show_stats_panel = True
                 return
             if self.load_btn.collidepoint(mx, my):
                 if self.sm.has_save():
@@ -315,6 +354,10 @@ class Game:
         self._start_mode(mode)
 
     def update(self, dt):
+        if self.state == 'playing':
+            # Accumulate play time
+            self.stm.add_play_time(dt)
+
         if self.state != 'playing':
             return
         cs = self.current_state
@@ -329,23 +372,28 @@ class Game:
                 self.state = 'gameover'
                 self.sound.play('gameover')
                 self.ach.on_win(plants_lost=0)
+                self.stm.on_game_lost()
             elif self.level.victory:
                 self.state = 'victory'
                 self.sound.play('victory')
                 self.ach.on_win(plants_lost=0)
+                self.stm.on_game_won()
         elif self.endless:
             if self.endless.game_over:
                 self.state = 'gameover'
                 self.sound.play('gameover')
                 self.show_leaderboard = True
+                self.stm.on_game_lost()
         elif self.lawnbowling:
             if self.lawnbowling.game_over:
                 self.state = 'gameover'
                 self.sound.play('gameover')
+                self.stm.on_game_lost()
             elif self.lawnbowling.victory:
                 self.state = 'victory'
                 self.sound.play('victory')
                 self.ach.on_mini_game_win('bowling')
+                self.stm.on_game_won()
 
     def draw(self):
         if self.state == 'menu':
@@ -372,8 +420,10 @@ class Game:
         elif self.state == 'victory':
             self._draw_end_screen()
 
-        if self.show_ach_panel:
-            self.ach.draw_panel(self.screen)
+        if self.show_ach_panel and self.ach_panel:
+            self.ach_panel.draw(self.screen)
+        if self.show_stats_panel and self.stats_panel:
+            self.stats_panel.draw(self.screen)
         if self.settings:
             self.settings.draw(self.screen)
         if self.load_screen:
@@ -440,12 +490,20 @@ class Game:
         ar = ach_text.get_rect(center=self.ach_btn.center)
         self.screen.blit(ach_text, ar)
 
+        # Stats button
+        stats_hover = self.stats_btn.collidepoint(mx, my)
+        pygame.draw.rect(self.screen, (30, 50, 70) if stats_hover else (20, 35, 55), self.stats_btn)
+        pygame.draw.rect(self.screen, (100, 160, 200), self.stats_btn, 1)
+        stats_text = self.font_small.render('Stats', True, (100, 160, 200))
+        sr = stats_text.get_rect(center=self.stats_btn.center)
+        self.screen.blit(stats_text, sr)
+
         # Settings gear
         self._draw_settings_icon()
 
         for i, hint in enumerate([
-            'Mouse: Select card / Place plant',
-            'ESC: Pause game',
+            'Mouse: Select card / Place plant   ESC: Pause game',
+            'A/J: Achievements   S: Stats   ESC: Menu',
         ]):
             h = self.font_tiny.render(hint, True, (100, 100, 100))
             r = h.get_rect(center=(SCREEN_WIDTH // 2, 555 + i * 22))

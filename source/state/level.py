@@ -13,6 +13,7 @@ from source.component.effects import (
     WalkingZombieAnimator, SteamEffect, SunPopEffect,
     GloomShroomSporeExplosion
 )
+from source.state.achievements import AchievementManager, StatsManager
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
 
@@ -513,6 +514,7 @@ class LevelState:
                 self.grid.place_plant(plant, row, col)
                 self.menubar.spend(self.menubar.selected)
                 self.plants_placed += 1
+                StatsManager.get_instance().on_plant_placed()
                 from source.component.effects import PlantGrowEffect
                 self.particles.append(PlantGrowEffect(plant.x, plant.y, plant.color))
                 self.sound.play('plant')

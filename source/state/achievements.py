@@ -1,6 +1,8 @@
 import pygame
 import json
 import os
+import time as time_module
+from source.constants import SCREEN_WIDTH, SCREEN_HEIGHT
 
 # Achievement definitions
 ACHIEVEMENTS = [
@@ -21,6 +23,309 @@ ACHIEVEMENTS = [
 
 DATA_DIR = os.path.expanduser('~/.hermes/prj-plants-vs-zombies')
 DATA_FILE = os.path.join(DATA_DIR, 'achievements.json')
+
+STATS_FILE = os.path.join(DATA_DIR, 'stats.json')
+
+# --------------------------------------------------------------------
+# StatsManager (singleton)
+# --------------------------------------------------------------------
+class StatsManager:
+    _instance = None
+
+    def __init__(self):
+        if StatsManager._instance is not None:
+            return
+        StatsManager._instance = self
+        self.total_play_seconds = 0.0
+        self.games_won = 0
+        self.games_lost = 0
+        self.plants_planted = 0
+        self._load()
+
+    @staticmethod
+    def get_instance():
+        if StatsManager._instance is None:
+            StatsManager()
+        return StatsManager._instance
+
+    def _load(self):
+        if not os.path.exists(STATS_FILE):
+            return
+        try:
+            with open(STATS_FILE, 'r') as f:
+                data = json.load(f)
+            self.total_play_seconds = data.get('total_play_seconds', 0.0)
+            self.games_won = data.get('games_won', 0)
+            self.games_lost = data.get('games_lost', 0)
+            self.plants_planted = data.get('plants_planted', 0)
+        except Exception:
+            pass
+
+    def save(self):
+        os.makedirs(DATA_DIR, exist_ok=True)
+        data = {
+            'total_play_seconds': self.total_play_seconds,
+            'games_won': self.games_won,
+            'games_lost': self.games_lost,
+            'plants_planted': self.plants_planted,
+        }
+        with open(STATS_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+
+    def add_play_time(self, seconds):
+        self.total_play_seconds += seconds
+        # Save at most every 10 seconds
+        if not hasattr(self, '_last_save_time') or time_module.time() - self._last_save_time > 10:
+            self.save()
+            self._last_save_time = time_module.time()
+
+    def on_game_won(self):
+        self.games_won += 1
+        self.save()
+
+    def on_game_lost(self):
+        self.games_lost += 1
+        self.save()
+
+    def on_plant_placed(self):
+        self.plants_planted += 1
+
+    def format_play_time(self):
+        secs = int(self.total_play_seconds)
+        h = secs // 3600
+        m = (secs % 3600) // 60
+        s = secs % 60
+        return f'{h:02d}:{m:02d}:{s:02d}'
+
+
+# --------------------------------------------------------------------
+# AchievementPanel UI
+# --------------------------------------------------------------------
+class AchievementPanel:
+    ICON_COLORS = [
+        (255, 215, 0), (100, 200, 100), (100, 150, 255),
+        (255, 150, 100), (200, 100, 255), (100, 255, 200),
+        (255, 100, 150), (150, 200, 100), (200, 150, 100),
+        (150, 100, 200), (255, 200, 100), (100, 200, 150), (200, 200, 100),
+    ]
+
+    def __init__(self, ach_manager):
+        self.ach = ach_manager
+        self.scroll_offset = 0
+        self.max_scroll = 0
+        # Panel dimensions
+        self.panel_w = 600
+        self.panel_h = 500
+        self.panel_x = SCREEN_WIDTH // 2 - self.panel_w // 2
+        self.panel_y = SCREEN_HEIGHT // 2 - self.panel_h // 2
+        # Close button
+        self.close_btn = pygame.Rect(self.panel_x + self.panel_w - 40, self.panel_y + 5, 35, 35)
+        # Grid: 2 columns
+        self.col_width = (self.panel_w - 40) // 2
+        self.row_h = 70
+        self.margin_x = 20
+        self.margin_y = 50
+        self._recalc_max_scroll()
+
+    def _recalc_max_scroll(self):
+        ach_list = list(self.ach.achievements.values())
+        n = len(ach_list)
+        rows_needed = (n + 1) // 2
+        total_content_h = self.margin_y + rows_needed * self.row_h + 40
+        self.max_scroll = max(0, total_content_h - self.panel_h)
+
+    def draw(self, surface):
+        # Semi-transparent overlay backdrop
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        surface.blit(overlay, (0, 0))
+
+        # Panel background
+        bg = pygame.Surface((self.panel_w, self.panel_h), pygame.SRCALPHA)
+        bg.fill((25, 30, 25, 245))
+        surface.blit(bg, (self.panel_x, self.panel_y))
+        pygame.draw.rect(surface, (80, 200, 80), (self.panel_x, self.panel_y, self.panel_w, self.panel_h), 2)
+
+        # Title
+        font_title = pygame.font.Font(None, 42)
+        title_surf = font_title.render('ACHIEVEMENTS', True, (100, 255, 100))
+        surface.blit(title_surf, (self.panel_x + self.panel_w // 2 - title_surf.get_width() // 2, self.panel_y + 10))
+
+        # Close button (X)
+        pygame.draw.rect(surface, (80, 30, 30), self.close_btn)
+        pygame.draw.rect(surface, (200, 80, 80), self.close_btn, 2)
+        font_x = pygame.font.Font(None, 28)
+        x_surf = font_x.render('X', True, (255, 100, 100))
+        x_rect = x_surf.get_rect(center=self.close_btn.center)
+        surface.blit(x_surf, x_rect)
+
+        # Achievements in 2-column grid
+        font_name = pygame.font.Font(None, 22)
+        font_desc = pygame.font.Font(None, 16)
+        font_time = pygame.font.Font(None, 14)
+        font_star = pygame.font.Font(None, 24)
+
+        ach_list = list(self.ach.achievements.values())
+        for idx, a in enumerate(ach_list):
+            col = idx % 2
+            row = idx // 2
+            ax = self.panel_x + self.margin_x + col * self.col_width
+            ay = self.panel_y + self.margin_y + row * self.row_h - self.scroll_offset
+
+            # Skip if outside visible panel area
+            if ay + self.row_h < self.panel_y or ay > self.panel_y + self.panel_h:
+                continue
+
+            unlocked = a['unlocked']
+            icon_color = self.ICON_COLORS[idx % len(self.ICON_COLORS)]
+
+            # Icon rectangle
+            icon_rect = pygame.Rect(ax, ay + 5, 36, 36)
+            pygame.draw.rect(surface, icon_color if unlocked else (60, 60, 60), icon_rect)
+            pygame.draw.rect(surface, (200, 200, 100) if unlocked else (80, 80, 80), icon_rect, 1)
+
+            # Star
+            star = '★' if unlocked else '☆'
+            star_color = (255, 215, 0) if unlocked else (80, 80, 80)
+            star_surf = font_star.render(star, True, star_color)
+            surface.blit(star_surf, (ax + 40, ay + 2))
+
+            # Name
+            name_color = (255, 215, 0) if unlocked else (120, 120, 120)
+            name_surf = font_name.render(a['name'], True, name_color)
+            surface.blit(name_surf, (ax + 60, ay + 2))
+
+            # Description
+            desc_color = (180, 180, 180) if unlocked else (90, 90, 90)
+            desc_surf = font_desc.render(a['desc'], True, desc_color)
+            surface.blit(desc_surf, (ax + 60, ay + 22))
+
+            # Unlock timestamp
+            if unlocked and a.get('unlock_time'):
+                time_surf = font_time.render(a['unlock_time'], True, (130, 130, 80))
+                surface.blit(time_surf, (ax + 60, ay + 40))
+            elif not unlocked:
+                cond_surf = font_time.render(f'[{a["condition"]}]', True, (70, 70, 70))
+                surface.blit(cond_surf, (ax + 60, ay + 40))
+
+        # Scroll bar (if needed)
+        if self.max_scroll > 0:
+            bar_h = max(20, int(40 * (self.panel_h / (self.max_scroll + self.panel_h))))
+            bar_y = self.panel_y + 50 + int((self.scroll_offset / self.max_scroll) * (self.panel_h - 50 - bar_h - 10))
+            pygame.draw.rect(surface, (60, 60, 60), (self.panel_x + self.panel_w - 12, bar_y, 8, bar_h))
+            pygame.draw.rect(surface, (100, 200, 100), (self.panel_x + self.panel_w - 12, bar_y, 8, bar_h), 1)
+
+        # Bottom hint
+        font_hint = pygame.font.Font(None, 20)
+        hint_surf = font_hint.render('Scroll: W/S or Arrow Keys   |   Close: ESC or X', True, (100, 100, 100))
+        surface.blit(hint_surf, (self.panel_x + self.panel_w // 2 - hint_surf.get_width() // 2, self.panel_y + self.panel_h - 22))
+
+    def handle_click(self, mx, my):
+        if self.close_btn.collidepoint(mx, my):
+            return 'close'
+        # Scroll with click on scrollbar
+        if self.max_scroll > 0:
+            bar_area = pygame.Rect(self.panel_x + self.panel_w - 12, self.panel_y + 50, 12, self.panel_h - 50)
+            if bar_area.collidepoint(mx, my):
+                rel_y = my - (self.panel_y + 50)
+                frac = rel_y / (self.panel_h - 50)
+                self.scroll_offset = int(frac * self.max_scroll)
+                self.scroll_offset = max(0, min(self.max_scroll, self.scroll_offset))
+        return None
+
+    def handle_key(self, key):
+        if key == pygame.K_w or key == pygame.K_UP:
+            self.scroll_offset = max(0, self.scroll_offset - 30)
+        elif key == pygame.K_s or key == pygame.K_DOWN:
+            self.scroll_offset = min(self.max_scroll, self.scroll_offset + 30)
+
+
+# --------------------------------------------------------------------
+# StatsPanel UI
+# --------------------------------------------------------------------
+class StatsPanel:
+    def __init__(self, ach_manager, stats_manager):
+        self.ach = ach_manager
+        self.stats = stats_manager
+        self.panel_w = 480
+        self.panel_h = 400
+        self.panel_x = SCREEN_WIDTH // 2 - self.panel_w // 2
+        self.panel_y = SCREEN_HEIGHT // 2 - self.panel_h // 2
+        self.close_btn = pygame.Rect(self.panel_x + self.panel_w - 40, self.panel_y + 5, 35, 35)
+
+    def draw(self, surface):
+        # Backdrop
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 180))
+        surface.blit(overlay, (0, 0))
+
+        # Panel
+        bg = pygame.Surface((self.panel_w, self.panel_h), pygame.SRCALPHA)
+        bg.fill((20, 25, 20, 245))
+        surface.blit(bg, (self.panel_x, self.panel_y))
+        pygame.draw.rect(surface, (80, 160, 200), (self.panel_x, self.panel_y, self.panel_w, self.panel_h), 2)
+
+        # Title
+        font_title = pygame.font.Font(None, 42)
+        title_surf = font_title.render('PLAYER STATS', True, (100, 180, 255))
+        surface.blit(title_surf, (self.panel_x + self.panel_w // 2 - title_surf.get_width() // 2, self.panel_y + 10))
+
+        # Close button
+        pygame.draw.rect(surface, (80, 30, 30), self.close_btn)
+        pygame.draw.rect(surface, (200, 80, 80), self.close_btn, 2)
+        font_x = pygame.font.Font(None, 28)
+        x_surf = font_x.render('X', True, (255, 100, 100))
+        x_rect = x_surf.get_rect(center=self.close_btn.center)
+        surface.blit(x_surf, x_rect)
+
+        # Build stat rows from AchievementManager stats + StatsManager
+        ach_stats = self.ach.stats
+        rows = [
+            ('Total Play Time',    self.stats.format_play_time()),
+            ('Zombies Killed',     str(ach_stats.get('zombies_killed', 0))),
+            ('Plants Planted',     str(self.stats.plants_planted)),
+            ('Sun Collected',      str(ach_stats.get('sun_collected', 0))),
+            ('Games Won',          str(self.stats.games_won)),
+            ('Games Lost',         str(self.stats.games_lost)),
+            ('Zombies Frozen',      str(ach_stats.get('zombies_frozen', 0))),
+            ('Sun from Scaredy',   str(ach_stats.get('sun_from_scaredy', 0))),
+            ('Squash Kills',       str(ach_stats.get('squash_kills', 0))),
+            ('Hypno Uses',         str(ach_stats.get('hypno_uses', 0))),
+            ('Achievements',       f'{self.ach.count_unlocked()}/{len(self.ach.achievements)}'),
+        ]
+
+        font_label = pygame.font.Font(None, 26)
+        font_value = pygame.font.Font(None, 26)
+        font_div = pygame.font.Font(None, 18)
+
+        y = self.panel_y + 55
+        row_h = 30
+        for label, value in rows:
+            # Alternating row bg
+            bg_row = pygame.Rect(self.panel_x + 15, y - 4, self.panel_w - 30, row_h)
+            pygame.draw.rect(surface, (30, 35, 30), bg_row)
+
+            label_surf = font_label.render(label + ':', True, (160, 160, 160))
+            surface.blit(label_surf, (self.panel_x + 25, y))
+
+            value_surf = font_value.render(value, True, (220, 220, 100))
+            surface.blit(value_surf, (self.panel_x + self.panel_w - 25 - value_surf.get_width(), y))
+
+            y += row_h
+            # Divider
+            pygame.draw.line(surface, (50, 55, 50), (self.panel_x + 15, y - 2),
+                             (self.panel_x + self.panel_w - 15, y - 2))
+
+        # Bottom hint
+        font_hint = pygame.font.Font(None, 20)
+        hint_surf = font_hint.render('Press ESC or click X to close', True, (100, 100, 100))
+        surface.blit(hint_surf, (self.panel_x + self.panel_w // 2 - hint_surf.get_width() // 2,
+                                  self.panel_y + self.panel_h - 22))
+
+    def handle_click(self, mx, my):
+        if self.close_btn.collidepoint(mx, my):
+            return 'close'
+        return None
 
 
 class AchievementManager:

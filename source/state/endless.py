@@ -7,9 +7,9 @@ from source.component.plant import create_plant
 from source.component.zombie import create_zombie
 from source.component.bullet import Bullet, ExplosionEffect, IceBlastEffect, SunParticle
 from source.component.effects import CherryBombExplosion, NewspaperShredEffect, SquashSmashEffect
+from source.state.achievements import AchievementManager, StatsManager
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
-from source.state.achievements import AchievementManager
 from source.state.leaderboard import LeaderboardManager
 
 
@@ -376,6 +376,7 @@ class EndlessState:
                 self.grid.place_plant(plant, row, col)
                 self.menubar.spend(self.menubar.selected)
                 self.plants_placed += 1
+                StatsManager.get_instance().on_plant_placed()
                 self.sound.play('plant')
 
     def handle_mouse_move(self, mx, my):
