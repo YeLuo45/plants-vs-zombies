@@ -4,7 +4,7 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
-from source.component.bullet import Bullet, ExplosionEffect, SunParticle, HitParticle
+from source.component.bullet import Bullet, ExplosionEffect, SunParticle, HitParticle, BiteParticle
 from source.component.menubar import Menubar
 
 class LevelState:
@@ -27,6 +27,9 @@ class LevelState:
         self.total_waves = len(WAVES)
         self.zombies_killed = 0
         self.pre_wave_timer = 5.0
+        # Screen shake
+        self.shake_timer = 0
+        self.shake_intensity = 0
         # Lawn mowers (one per row, at left edge of lawn)
         self.mowers = [LawnMower(GRID_OFFSET_X - 30, GRID_OFFSET_Y + r * CELL_HEIGHT + CELL_HEIGHT // 2)
                        for r in range(GRID_ROWS)]
@@ -41,8 +44,16 @@ class LevelState:
         self.spawn_timer = 0
         self.wave_active = True
 
+    def trigger_shake(self, intensity, duration):
+        """Trigger screen shake."""
+        self.shake_intensity = intensity
+        self.shake_timer = duration
+
     def update(self, dt):
         self.menubar.update(dt)
+        # Screen shake decay
+        if self.shake_timer > 0:
+            self.shake_timer -= dt
 
         if not self.wave_active and self.pre_wave_timer > 0:
             self.pre_wave_timer -= dt
@@ -90,6 +101,10 @@ class LevelState:
             result = z.update(dt)
             if z.dead and z.death_timer > 0.6:
                 self.zombies.remove(z)
+            # Bite particle effect
+            if z.just_bitten and z.attack_target:
+                self.particles.append(BiteParticle(z.attack_target.rect.centerx, z.attack_target.rect.centery))
+                z.just_bitten = False
 
         for b in self.bullets[:]:
             b.update(dt)
@@ -133,6 +148,7 @@ class LevelState:
                     elif action == 'explode':
                         cx, cy = p.rect.centerx, p.rect.centery
                         self.particles.append(ExplosionEffect(cx, cy))
+                        self.trigger_shake(10, 0.3)
                         for z in self.zombies[:]:
                             if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
                                 z.take_damage(999)
@@ -194,6 +210,13 @@ class LevelState:
                 self.menubar.spend(self.menubar.selected)
 
     def draw(self, surface):
+        # Apply screen shake as scroll offset
+        scroll_x, scroll_y = 0, 0
+        if self.shake_timer > 0:
+            import random
+            scroll_x = random.randint(-self.shake_intensity, self.shake_intensity)
+            scroll_y = random.randint(-self.shake_intensity, self.shake_intensity)
+
         surface.fill((30, 80, 30))
         self.grid.draw(surface)
         for mower in self.mowers:
@@ -202,15 +225,15 @@ class LevelState:
             for col in range(GRID_COLS):
                 p = self.grid.cells[row][col]
                 if p:
-                    p.draw(surface)
+                    p.draw(surface, scroll_x, scroll_y)
         for z in self.zombies:
-            z.draw(surface)
+            z.draw(surface, scroll_x, scroll_y)
         for b in self.bullets:
-            b.draw(surface)
+            b.draw(surface, scroll_x, scroll_y)
         for e in self.particles:
-            e.draw(surface)
+            e.draw(surface, scroll_x, scroll_y)
         for sp in self.sun_particles:
-            sp.draw(surface)
+            sp.draw(surface, scroll_x, scroll_y)
         self.menubar.draw(surface)
         font = pygame.font.Font(None, 28)
         wave_text = font.render(f'Wave: {self.wave_index+1}/{self.total_waves}', True, WHITE)

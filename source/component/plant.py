@@ -78,13 +78,17 @@ class Plant(pygame.sprite.Sprite):
 
         return None
 
-    def draw(self, surface):
+    def draw(self, surface, scroll_x=0, scroll_y=0):
         x, y = self.rect.centerx, self.rect.centery
 
         # Apply shake offset when active
         if self.shake_active:
             shake_offset = int(math.sin(self.shake_timer * 60) * 5)
             x += shake_offset
+
+        # Apply scroll offset
+        x -= scroll_x
+        y -= scroll_y
 
         pygame.draw.circle(surface, self.color, (int(x), int(y)), 25)
         if self.hp < self.max_hp:

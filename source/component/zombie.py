@@ -28,6 +28,7 @@ class Zombie(pygame.sprite.Sprite):
         self.death_timer = 0
         self.eating = False
         self.eat_anim_timer = 0
+        self.just_bitten = False  # set true when bite occurs, level.py resets
         # Animation
         self.anim_frame = 0
         self.anim_timer = 0
@@ -70,6 +71,7 @@ class Zombie(pygame.sprite.Sprite):
             if self.attack_timer >= self.attack_interval:
                 self.attack_timer = 0
                 self.eat_anim_timer = 0
+                self.just_bitten = True
                 dead = plant_in_way.take_damage(self.attack)
                 if dead:
                     for c in range(self.grid.cols):
@@ -97,13 +99,13 @@ class Zombie(pygame.sprite.Sprite):
         self.dead = True
         self.death_timer = 0
 
-    def draw(self, surface):
+    def draw(self, surface, scroll_x=0, scroll_y=0):
         if self.dead:
             # Death animation: fade out over 0.5s
             alpha = max(0, 255 - int(self.death_timer * 500))
             if alpha <= 0:
                 return
-            x, y = int(self.x), int(self.y)
+            x, y = int(self.x - scroll_x), int(self.y - scroll_y)
             # Draw zombie in darker color with transparency
             temp_surf = pygame.Surface((self.w + 10, self.h + 10), pygame.SRCALPHA)
             pygame.draw.rect(temp_surf, (*self.color, alpha), 
@@ -113,7 +115,7 @@ class Zombie(pygame.sprite.Sprite):
             surface.blit(temp_surf, (x - self.w // 2 - 5, y - self.h // 2 - 5))
             return
 
-        x, y = int(self.x), int(self.y)
+        x, y = int(self.x - scroll_x), int(self.y - scroll_y)
         body_y = y + self.arm_y if self.eating else y
 
         # Body
