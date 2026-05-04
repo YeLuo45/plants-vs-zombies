@@ -9,7 +9,11 @@ class Menubar:
     def __init__(self):
         self.sun = SUN_VALUE
         self.card_panel_h = 100
-        self.card_list = list(PLANTS.keys())[:8]
+        # All 13 plants (8 + torchwood + P2 plants)
+        self.all_cards = list(PLANTS.keys())
+        self.cards_per_page = 8
+        self.card_page = 0
+        self.card_list = self.all_cards[:self.cards_per_page]
         self.selected = None
         self.shovel_selected = False
         # Per-card cooldown timers (seconds remaining)
@@ -18,6 +22,16 @@ class Menubar:
         self.mallet_selected = False
         self.mallet_uses = MALLET_MAX_USES
         # Card positions
+        self._calc_card_rects()
+
+    def _recalc_pages(self):
+        """Rebuild card_list for current page."""
+        start = self.card_page * self.cards_per_page
+        self.card_list = self.all_cards[start:start + self.cards_per_page]
+        # Sync cooldowns dict to current page
+        for name in self.all_cards:
+            if name not in self.cooldowns:
+                self.cooldowns[name] = 0.0
         self._calc_card_rects()
 
     def _calc_card_rects(self):
@@ -32,6 +46,10 @@ class Menubar:
         self.shovel_rect = pygame.Rect(shovel_x, CARD_PANEL_Y + 10, SHOVEL_W, SHOVEL_H)
         # Mallet rect: left of first card
         self.mallet_rect = pygame.Rect(start_x - 60, CARD_PANEL_Y + 5, 50, 70)
+        # Page nav arrows (left and right of card strip)
+        self.left_arrow = pygame.Rect(start_x - 28, CARD_PANEL_Y + 30, 22, 40)
+        total_w = len(self.card_list) * CARD_W + (len(self.card_list) - 1) * CARD_GAP
+        self.right_arrow = pygame.Rect(start_x + total_w + 7, CARD_PANEL_Y + 30, 28, 40)
 
     def draw(self, surface):
         # Draw menu bar background
@@ -91,6 +109,26 @@ class Menubar:
         # Draw mallet tool (left of cards)
         self._draw_mallet(surface)
 
+        # Draw page navigation arrows
+        total_pages = (len(self.all_cards) + self.cards_per_page - 1) // self.cards_per_page
+        if total_pages > 1:
+            # Left arrow
+            if self.card_page > 0:
+                pygame.draw.polygon(surface, (200, 200, 200), [
+                    (self.left_arrow.right - 5, self.left_arrow.centery),
+                    (self.left_arrow.left + 5, self.left_arrow.top + 10),
+                    (self.left_arrow.left + 5, self.left_arrow.bottom - 10)])
+            # Right arrow
+            if self.card_page < total_pages - 1:
+                pygame.draw.polygon(surface, (200, 200, 200), [
+                    (self.right_arrow.left + 5, self.right_arrow.centery),
+                    (self.right_arrow.right - 5, self.right_arrow.top + 10),
+                    (self.right_arrow.right - 5, self.right_arrow.bottom - 10)])
+            # Page indicator
+            page_font = pygame.font.Font(None, 20)
+            page_text = page_font.render(f'{self.card_page + 1}/{total_pages}', True, (180, 180, 180))
+            surface.blit(page_text, (self.right_arrow.right + 5, CARD_PANEL_Y + 55))
+
         # Draw shovel
         shovel_color = (180, 100, 50) if self.shovel_selected else BROWN
         pygame.draw.rect(surface, shovel_color, self.shovel_rect)
@@ -133,6 +171,17 @@ class Menubar:
                     self.cooldowns[name] = 0
 
     def get_card_at(self, mx, my):
+        # Check page arrows first
+        if self.left_arrow.collidepoint(mx, my) and self.card_page > 0:
+            self.card_page -= 1
+            self._recalc_pages()
+            return None
+        if self.right_arrow.collidepoint(mx, my):
+            total_pages = (len(self.all_cards) + self.cards_per_page - 1) // self.cards_per_page
+            if self.card_page < total_pages - 1:
+                self.card_page += 1
+                self._recalc_pages()
+                return None
         for i, rect in enumerate(self.card_rects):
             if rect.collidepoint(mx, my):
                 return self.card_list[i]
