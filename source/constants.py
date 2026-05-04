@@ -75,15 +75,15 @@ ZOMBIES = {
 # 10-wave progressive difficulty
 WAVES = [
     {'zombies': [('basic', 3), ('cone', 2)],               'spawn_delay': 3.0},
-    {'zombies': [('basic', 4), ('cone', 3)],               'spawn_delay': 3.0},
+    {'zombies': [('basic', 4), ('cone', 3)],               'spawn_delay': 2.8},
     {'zombies': [('basic', 4), ('cone', 3), ('bucket', 1)],'spawn_delay': 2.5},
-    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 1)], 'spawn_delay': 2.5},
+    {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 1)], 'spawn_delay': 2.2},
     {'zombies': [('basic', 5), ('cone', 3), ('bucket', 2), ('pole', 2), ('football', 1)], 'spawn_delay': 2.0},
-    {'zombies': [('basic', 6), ('cone', 4), ('bucket', 2), ('pole', 2), ('football', 2)], 'spawn_delay': 2.0},
-    {'zombies': [('basic', 6), ('cone', 5), ('bucket', 3), ('pole', 3), ('football', 2)], 'spawn_delay': 1.5},
-    {'zombies': [('basic', 7), ('cone', 5), ('bucket', 4), ('pole', 3), ('football', 3)], 'spawn_delay': 1.5},
+    {'zombies': [('basic', 6), ('cone', 4), ('bucket', 2), ('pole', 2), ('football', 2)], 'spawn_delay': 1.7},
+    {'zombies': [('basic', 6), ('cone', 5), ('bucket', 3), ('pole', 3), ('football', 2)], 'spawn_delay': 1.4},
+    {'zombies': [('basic', 7), ('cone', 5), ('bucket', 4), ('pole', 3), ('football', 3)], 'spawn_delay': 1.2},
     {'zombies': [('basic', 8), ('cone', 6), ('bucket', 4), ('pole', 4), ('football', 3)], 'spawn_delay': 1.0},
-    {'zombies': [('basic', 10), ('cone', 8), ('bucket', 5), ('pole', 5), ('football', 4)], 'spawn_delay': 1.0},
+    {'zombies': [('basic', 10), ('cone', 8), ('bucket', 5), ('pole', 5), ('football', 4)], 'spawn_delay': 0.8},
 ]
 
 # Bullet stats

@@ -4,6 +4,7 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
+from source.component.effects import SteamEffect
 from source.component.bullet import Bullet, ExplosionEffect, SunParticle, HitParticle, BiteParticle
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
@@ -113,18 +114,35 @@ class LevelState:
                 self.sound.play('chomper')
                 z.just_bitten = False
 
+        # Ice + Fire bullet cancellation (steam effect)
+        for i, b1 in enumerate(self.bullets):
+            if not b1.alive:
+                continue
+            for b2 in self.bullets[i+1:]:
+                if not b2.alive:
+                    continue
+                if b1.row == b2.row and b1.ice and b2.fire:
+                    # Both disappear, spawn steam
+                    self.particles.append(SteamEffect((b1.x + b2.x) / 2, b1.y))
+                    b1.alive = False
+                    b2.alive = False
+                elif b1.row == b2.row and b1.fire and b2.ice:
+                    self.particles.append(SteamEffect((b1.x + b2.x) / 2, b1.y))
+                    b1.alive = False
+                    b2.alive = False
+
         for b in self.bullets[:]:
             b.update(dt)
-            # Torchwood: upgrade passing bullets to fire
-            if not b.fire and not b.ice:
+            # Torchwood: ice bullets become fire; regular bullets become fire
+            if not b.fire:
                 for row_check in range(GRID_ROWS):
                     for col_check in range(GRID_COLS):
                         p = self.grid.cells[row_check][col_check]
                         if p and p.name == 'torchwood' and p.row == b.row:
-                            # Check if bullet is passing through torchwood cell
                             torchwood_x = p.rect.centerx
                             if b.x >= torchwood_x - 5:
                                 b.fire = True
+                                b.ice = False
                                 b.damage = BULLET_DAMAGE * 2
             # Bullet-zombie collision
             for z in self.zombies:
