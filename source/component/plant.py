@@ -1,4 +1,5 @@
 import pygame
+import math
 from source.constants import *
 
 
@@ -338,6 +339,27 @@ class Plant(pygame.sprite.Sprite):
             pygame.draw.circle(surface, (120, 180, 60), (x, y - 2), 3)
             # Stem
             pygame.draw.rect(surface, (180, 160, 140), (x - 6, y + 5, 12, 18))
+        elif self.name == 'marigold':
+            # Golden marigold - bright golden flower with petals
+            # Outer petals
+            for i in range(8):
+                angle = i * 3.14159 / 4 + self.anim_frame * 0.3
+                px = x + int(math.cos(angle) * 18)
+                py = y + int(math.sin(angle) * 18)
+                pygame.draw.circle(surface, (255, 200, 0), (px, py), 8)
+            # Center
+            pygame.draw.circle(surface, (255, 165, 0), (x, y), 12)
+            pygame.draw.circle(surface, (200, 100, 0), (x, y), 6)
+        elif self.name == 'goldmagnet':
+            # Metallic silver/gold magnet with horseshoe shape
+            # Magnet body
+            pygame.draw.circle(surface, (180, 180, 200), (x, y), 22)
+            pygame.draw.circle(surface, (220, 220, 240), (x, y), 18)
+            # Poles marked with colors
+            pygame.draw.rect(surface, RED, (x - 14, y - 5, 8, 10))
+            pygame.draw.rect(surface, (100, 100, 255), (x + 6, y - 5, 8, 10))
+            # Shine
+            pygame.draw.circle(surface, (255, 255, 255), (x - 6, y - 8), 4)
         elif self.name == 'potatomine':
             if not self.armed:
                 pygame.draw.circle(surface, (101, 67, 33), (x, y), 10)

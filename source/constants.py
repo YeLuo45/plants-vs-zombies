@@ -76,6 +76,9 @@ PLANTS = {
     'zapricot':     {'cost': 150, 'cooldown': 5,  'hp': 100, 'attack': 40, 'interval': 2.0, 'color': (255, 255, 100), 'w': 60, 'h': 60, 'desc': 'Zapricot'},
     'cattail':      {'cost': 225, 'cooldown': 7,  'hp': 100, 'attack': 80, 'interval': 1.5, 'color': (50, 180, 50),   'w': 60, 'h': 60, 'desc': 'Cattail'},
     'gloomshroom':  {'cost': 150, 'cooldown': 10, 'hp': 100, 'attack': 0,  'interval': 0,   'color': (100, 150, 50),  'w': 60, 'h': 60, 'desc': 'Gloom Shroom'},
+    # Zen Special plants
+    'marigold':     {'cost': 50,  'cooldown': 0,  'hp': 100, 'attack': 0,  'interval': 0,   'color': (255, 215, 0),   'w': 60, 'h': 60, 'desc': 'Marigold'},
+    'goldmagnet':   {'cost': 75,  'cooldown': 0,  'hp': 100, 'attack': 0,  'interval': 0,   'color': (200, 200, 220), 'w': 60, 'h': 60, 'desc': 'Gold Magnet'},
 }
 
 # Zombie definitions

@@ -19,6 +19,9 @@ ACHIEVEMENTS = [
     {'id': 'bowling_nut',      'name': 'Bowling Champion',      'desc': 'Complete Lawn Bowling mode',         'condition': 'Win bowling mode'},
     {'id': 'survival_5',       'name': 'Survivor',              'desc': 'Survive 5 waves in Endless mode',   'condition': 'Survive 5 waves endless'},
     {'id': 'zen_master',       'name': 'Zen Master',            'desc': 'Place 10 plants in Zen Garden',      'condition': 'Place 10 plants in Zen'},
+    {'id': 'green_thumb',      'name': 'Green Thumb',           'desc': 'Water 10 plants in Zen Garden',      'condition': 'Water 10 plants in Zen'},
+    {'id': 'golden_garden',    'name': 'Golden Garden',         'desc': 'Place 20 Marigolds in Zen Garden',   'condition': 'Place 20 Marigolds in Zen'},
+    {'id': 'magnetized',       'name': 'Magnetized',             'desc': 'Collect 500 sun with Gold Magnets',  'condition': 'Collect 500 sun with Gold Magnets'},
 ]
 
 DATA_DIR = os.path.expanduser('~/.hermes/prj-plants-vs-zombies')
@@ -291,6 +294,9 @@ class StatsPanel:
             ('Sun from Scaredy',   str(ach_stats.get('sun_from_scaredy', 0))),
             ('Squash Kills',       str(ach_stats.get('squash_kills', 0))),
             ('Hypno Uses',         str(ach_stats.get('hypno_uses', 0))),
+            ('Zen Plants Watered', str(ach_stats.get('zen_plants_watered', 0))),
+            ('Marigolds Placed',   str(ach_stats.get('marigolds_placed', 0))),
+            ('Sun from Magnets',   str(ach_stats.get('sun_from_magnet', 0))),
             ('Achievements',       f'{self.ach.count_unlocked()}/{len(self.ach.achievements)}'),
         ]
 
@@ -355,6 +361,9 @@ class AchievementManager:
             'sun_from_scaredy': 0,
             'squash_kills': 0,
             'hypno_uses': 0,
+            'zen_plants_watered': 0,
+            'marigolds_placed': 0,
+            'sun_from_magnet': 0,
         }
 
         self._load()
@@ -462,6 +471,21 @@ class AchievementManager:
     def on_zen_plant(self, count):
         if count >= 10:
             self.unlock('zen_master')
+
+    def on_zen_water(self, total_watered):
+        self.stats['zen_plants_watered'] = total_watered
+        if total_watered >= 10:
+            self.unlock('green_thumb')
+
+    def on_marigold_placed(self, total_marigolds):
+        self.stats['marigolds_placed'] = total_marigolds
+        if total_marigolds >= 20:
+            self.unlock('golden_garden')
+
+    def on_magnet_sun(self, total_sun):
+        self.stats['sun_from_magnet'] = total_sun
+        if total_sun >= 500:
+            self.unlock('magnetized')
 
     def pop_newly_unlocked(self):
         ids = self.newly_unlocked[:]
