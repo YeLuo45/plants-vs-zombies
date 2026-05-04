@@ -49,10 +49,11 @@ class Game:
         bw, bh = 200, 55
         bx = SCREEN_WIDTH // 2 - bw // 2
         self.menu_buttons = [
-            ('adventure',  pygame.Rect(bx, 230, bw, bh)),
-            ('endless',    pygame.Rect(bx, 295, bw, bh)),
-            ('zen',        pygame.Rect(bx, 360, bw, bh)),
-            ('bowling',    pygame.Rect(bx, 425, bw, bh)),
+            ('adventure',  pygame.Rect(bx, 210, bw, bh)),
+            ('endless',    pygame.Rect(bx, 275, bw, bh)),
+            ('spectator',  pygame.Rect(bx, 340, bw, bh)),
+            ('zen',        pygame.Rect(bx, 405, bw, bh)),
+            ('bowling',    pygame.Rect(bx, 470, bw, bh)),
         ]
         self.ach_btn = pygame.Rect(SCREEN_WIDTH - 130, 40, 120, 40)
         self.stats_btn = pygame.Rect(SCREEN_WIDTH - 130, 90, 120, 40)
@@ -76,7 +77,7 @@ class Game:
 
     @property
     def current_state(self):
-        return self.level or self.endless or self.zen or self.lawnbowling
+        return self.level or self.endless or self.zen or self.lawnbowling or self.spectator
 
     @property
     def game_speed(self):
@@ -99,6 +100,10 @@ class Game:
                     if not self.show_ach_panel and not self.show_stats_panel:
                         self.stats_panel = StatsPanel(self.ach, self.stm)
                         self.show_stats_panel = True
+                elif event.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                    # Speed control for spectator mode
+                    if self.spectator and self.state == 'playing':
+                        self.spectator.handle_key(event.key)
                 elif self.show_ach_panel and self.ach_panel:
                     self.ach_panel.handle_key(event.key)
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -247,6 +252,7 @@ class Game:
         self.endless = None
         self.zen = None
         self.lawnbowling = None
+        self.spectator = None
         self.save_enabled = True
 
         if mode == 'adventure':
@@ -255,6 +261,10 @@ class Game:
         elif mode == 'endless':
             from source.state.endless import EndlessState
             self.endless = EndlessState(self.screen)
+        elif mode == 'spectator':
+            from source.state.spectator import SpectatorState
+            self.spectator = SpectatorState(self.screen)
+            self.save_enabled = False
         elif mode == 'zen':
             from source.state.zen import ZenState
             self.zen = ZenState(self.screen)
@@ -466,6 +476,7 @@ class Game:
         mode_names = {
             'adventure': 'Adventure Mode',
             'endless':   'Endless Survival',
+            'spectator': 'Spectator Mode',
             'zen':       'Zen Garden',
             'bowling':   'Lawn Bowling',
         }
