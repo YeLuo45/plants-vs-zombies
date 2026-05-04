@@ -35,8 +35,35 @@ class Bullet(pygame.sprite.Sprite):
                     if self.ice:
                         z.apply_slow()
                     self.alive = False
-                    return z
-        return None
+                    return z, self.x, self.y, self.ice
+        return None, 0, 0, False
+
+
+class HitParticle:
+    """Circular shockwave effect when bullet hits a zombie."""
+    def __init__(self, x, y, ice):
+        self.x = x
+        self.y = y
+        self.ice = ice
+        self.timer = 0
+        self.duration = 0.3
+        self.alive = True
+        self.initial_radius = 5
+        self.max_radius = 25
+
+    def update(self, dt):
+        self.timer += dt
+        if self.timer >= self.duration:
+            self.alive = False
+
+    def draw(self, surface):
+        progress = self.timer / self.duration
+        radius = int(self.initial_radius + (self.max_radius - self.initial_radius) * progress)
+        alpha = int(255 * (1.0 - progress))
+        if self.ice:
+            pygame.draw.circle(surface, (150, 220, 255, alpha), (int(self.x), int(self.y)), radius, 2)
+        else:
+            pygame.draw.circle(surface, (0, 200, 0, alpha), (int(self.x), int(self.y)), radius, 2)
 
 class ExplosionEffect:
     def __init__(self, x, y):

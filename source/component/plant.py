@@ -1,4 +1,5 @@
 import pygame
+import math
 from source.constants import *
 
 class Plant(pygame.sprite.Sprite):
@@ -31,6 +32,9 @@ class Plant(pygame.sprite.Sprite):
         self.eating = False
         self.eat_timer = 0
         self.eat_target = None
+        # Shake (when damaged)
+        self.shake_timer = 0
+        self.shake_active = False
 
     def update(self, dt, events):
         self.anim_timer += dt
@@ -64,10 +68,24 @@ class Plant(pygame.sprite.Sprite):
             if self.attack_timer >= self.attack_interval:
                 self.attack_timer = 0
                 return 'shoot'
+
+        # Shake timer update
+        if self.shake_active:
+            self.shake_timer -= dt
+            if self.shake_timer <= 0:
+                self.shake_active = False
+                self.shake_timer = 0
+
         return None
 
     def draw(self, surface):
         x, y = self.rect.centerx, self.rect.centery
+
+        # Apply shake offset when active
+        if self.shake_active:
+            shake_offset = int(math.sin(self.shake_timer * 60) * 5)
+            x += shake_offset
+
         pygame.draw.circle(surface, self.color, (int(x), int(y)), 25)
         if self.hp < self.max_hp:
             bar_w = 40
@@ -79,6 +97,9 @@ class Plant(pygame.sprite.Sprite):
 
     def take_damage(self, dmg):
         self.hp -= dmg
+        if self.hp > 0:
+            self.shake_active = True
+            self.shake_timer = 0.3
         return self.hp <= 0
 
     def try_eat_zombie(self, zombie):

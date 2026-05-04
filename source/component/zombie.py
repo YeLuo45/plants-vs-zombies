@@ -120,20 +120,30 @@ class Zombie(pygame.sprite.Sprite):
         body_rect = pygame.Rect(x - self.w // 2, body_y - self.h // 2, self.w, self.h)
         pygame.draw.rect(surface, self.color, body_rect)
 
-        # Arms (raised while eating, normal while walking)
+        # Arms (raised while eating, walking animation while walking)
         if self.eating:
             # Raised arm
             pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, body_y - self.h // 2 + 5 + self.arm_y, 8, 20))
             # Lowered arm (dangling)
             pygame.draw.rect(surface, self.color, (x + self.w // 2, body_y - self.h // 2 + 10, 8, 20))
         else:
-            # Normal arms swinging with walk animation
-            arm_offset = 5 if self.anim_frame == 0 else -5
-            pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, body_y - 5 + arm_offset, 8, 20))
-            pygame.draw.rect(surface, self.color, (x + self.w // 2, body_y - 5 - arm_offset, 8, 20))
+            # Walking arm swing + body bob
+            bob = int(2 * (self.anim_frame * 2 - 1))  # ±2 pixel body bob
+            arm_swing = 8 if self.anim_frame == 0 else -8
+            walking_body_y = body_y + bob
+            pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, walking_body_y - 5 + arm_swing, 8, 20))
+            pygame.draw.rect(surface, self.color, (x + self.w // 2, walking_body_y - 5 - arm_swing, 8, 20))
+            body_y = walking_body_y
 
-        # Head
-        pygame.draw.circle(surface, (180, 180, 180), (x, y - self.h // 2 - 10 + (self.arm_y if self.eating else 0)), 12)
+        # Head (follows body bob when walking)
+        head_y = y - self.h // 2 - 10 + (self.arm_y if self.eating else bob)
+        pygame.draw.circle(surface, (180, 180, 180), (x, head_y), 12)
+
+        # Ice slow indicator
+        if self.slow_timer > 0:
+            pygame.draw.circle(surface, (150, 200, 255), (x, y), 5, 2)
+            # Ice slow glow around body
+            pygame.draw.circle(surface, (150, 200, 255, 100), (x, body_y), self.w // 2 + 5, 2)
 
         # Zombie type decoration
         if self.name == 'cone':
@@ -142,10 +152,6 @@ class Zombie(pygame.sprite.Sprite):
             pygame.draw.rect(surface, GRAY, (x - 18, y - self.h // 2 - 28, 36, 20))
         elif self.name == 'football':
             pygame.draw.rect(surface, (80, 80, 80), (x - 20, y - self.h // 2 - 30, 40, 25))
-
-        # Ice slow indicator
-        if self.slow_timer > 0:
-            pygame.draw.circle(surface, (150, 200, 255), (x, y), 5, 2)
 
         # HP bar
         if self.hp < self.max_hp:

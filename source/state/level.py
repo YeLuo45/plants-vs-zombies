@@ -4,7 +4,7 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
-from source.component.bullet import Bullet, ExplosionEffect, SunParticle
+from source.component.bullet import Bullet, ExplosionEffect, SunParticle, HitParticle
 from source.component.menubar import Menubar
 
 class LevelState:
@@ -93,6 +93,19 @@ class LevelState:
 
         for b in self.bullets[:]:
             b.update(dt)
+            # Bullet-zombie collision
+            for z in self.zombies:
+                if z.dead:
+                    continue
+                if z.row == b.row:
+                    dist = abs(b.x - z.x)
+                    if dist < 30:
+                        hit = z.take_damage(b.damage)
+                        if b.ice:
+                            z.apply_slow()
+                        self.particles.append(HitParticle(z.x, z.y, b.ice))
+                        b.alive = False
+                        break
             if not b.alive:
                 self.bullets.remove(b)
 
