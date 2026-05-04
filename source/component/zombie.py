@@ -56,6 +56,10 @@ class Zombie(pygame.sprite.Sprite):
         self.helmet_hp = 200 if name == 'football' else 0
         self.max_helmet_hp = 200 if name == 'football' else 0
 
+        # Poison status
+        self.poisoned = False
+        self.poison_timer = 0
+
     def update(self, dt):
         if self.dead:
             self.death_timer += dt
@@ -321,18 +325,23 @@ class Zombie(pygame.sprite.Sprite):
 
         # Body
         body_rect = pygame.Rect(x - self.w // 2, body_y - self.h // 2, self.w, self.h)
-        pygame.draw.rect(surface, self.color, body_rect)
+        # Poisoned tint
+        draw_color = self.color
+        if self.poisoned:
+            draw_color = (100, 255, 100)
+        pygame.draw.rect(surface, draw_color, body_rect)
 
         # Arms
         if self.eating:
-            pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, body_y - self.h // 2 + 5 + self.arm_y, 8, 20))
-            pygame.draw.rect(surface, self.color, (x + self.w // 2, body_y - self.h // 2 + 10, 8, 20))
+            arm_color = draw_color
+            pygame.draw.rect(surface, arm_color, (x - self.w // 2 - 8, body_y - self.h // 2 + 5 + self.arm_y, 8, 20))
+            pygame.draw.rect(surface, arm_color, (x + self.w // 2, body_y - self.h // 2 + 10, 8, 20))
         else:
             bob = int(2 * (self.anim_frame * 2 - 1))
             arm_swing = 8 if self.anim_frame == 0 else -8
             walking_body_y = body_y + bob
-            pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, walking_body_y - 5 + arm_swing, 8, 20))
-            pygame.draw.rect(surface, self.color, (x + self.w // 2, walking_body_y - 5 - arm_swing, 8, 20))
+            pygame.draw.rect(surface, draw_color, (x - self.w // 2 - 8, walking_body_y - 5 + arm_swing, 8, 20))
+            pygame.draw.rect(surface, draw_color, (x + self.w // 2, walking_body_y - 5 - arm_swing, 8, 20))
             body_y = walking_body_y
 
         # Head

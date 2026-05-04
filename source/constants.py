@@ -71,7 +71,11 @@ PLANTS = {
     'wintermelon':  {'cost': 300, 'cooldown': 7,  'hp': 100,  'attack': 20,  'interval': 1.0,  'color': WATERMELON_COLOR,'w': 60, 'h': 60, 'desc': 'Winter Melon'},
     'iceshroom':    {'cost': 75,  'cooldown': 50, 'hp': 100,  'attack': 0,   'interval': 0,    'color': ICE_BLUE,        'w': 60, 'h': 60, 'desc': 'Ice Shroom'},
     'hypnoshroom':  {'cost': 75,  'cooldown': 30, 'hp': 100,  'attack': 0,   'interval': 0,    'color': PURPLE,          'w': 60, 'h': 60, 'desc': 'Hypno Shroom'},
-    'scaredy':      {'cost': 50,  'cooldown': 7,  'hp': 100,  'attack': 0,   'interval': 0,    'color': (200, 200, 100), 'w': 60, 'h': 60, 'desc': 'Scaredy Shroom'},
+    'scaredy':      {'cost': 50,  'cooldown': 7,  'hp': 100, 'attack': 0,   'interval': 0,    'color': (200, 200, 100), 'w': 60, 'h': 60, 'desc': 'Scaredy Shroom'},
+    # H-plants
+    'zapricot':     {'cost': 150, 'cooldown': 5,  'hp': 100, 'attack': 40, 'interval': 2.0, 'color': (255, 255, 100), 'w': 60, 'h': 60, 'desc': 'Zapricot'},
+    'cattail':      {'cost': 225, 'cooldown': 7,  'hp': 100, 'attack': 80, 'interval': 1.5, 'color': (50, 180, 50),   'w': 60, 'h': 60, 'desc': 'Cattail'},
+    'gloomshroom':  {'cost': 150, 'cooldown': 10, 'hp': 100, 'attack': 0,  'interval': 0,   'color': (100, 150, 50),  'w': 60, 'h': 60, 'desc': 'Gloom Shroom'},
 }
 
 # Zombie definitions

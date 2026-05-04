@@ -68,6 +68,15 @@ class Plant(pygame.sprite.Sprite):
         self.sun_timer_scaredy = 0
         self.sun_interval_scaredy = 3.0
 
+        # Zapricot - electric glow
+        self.electric_timer = 0
+
+        # Cattail - targeting
+        self.cattail_target = None
+
+        # Gloom Shroom
+        self.spore_released = False
+
     def update(self, dt, events):
         self.anim_timer += dt
         if self.anim_timer >= 0.15:
@@ -157,6 +166,29 @@ class Plant(pygame.sprite.Sprite):
                 if self.attack_timer >= self.attack_interval:
                     self.attack_timer = 0
                     return 'shoot'
+
+        # Zapricot - 3x3 electric area attack
+        if self.name == 'zapricot':
+            if self.attack_interval > 0:
+                self.attack_timer += dt
+                if self.attack_timer >= self.attack_interval:
+                    self.attack_timer = 0
+                    return 'electric_shot'
+
+        # Cattail - global targeting, always hits
+        if self.name == 'cattail':
+            if self.attack_interval > 0:
+                self.attack_timer += dt
+                if self.attack_timer >= self.attack_interval:
+                    self.attack_timer = 0
+                    return 'spike_shot'
+
+        # Gloom Shroom - one-time spore cloud
+        if self.name == 'gloomshroom' and not self.spore_released:
+            self.attack_timer += dt
+            if self.attack_timer >= 0.5:
+                self.spore_released = True
+                return 'spore_explode'
 
         return None
 
@@ -275,6 +307,37 @@ class Plant(pygame.sprite.Sprite):
             pygame.draw.circle(surface, WHITE, (x + 5, y - 3), 6)
             pygame.draw.circle(surface, BLACK, (x - 5, y - 3), 3)
             pygame.draw.circle(surface, BLACK, (x + 5, y - 3), 3)
+        elif self.name == 'zapricot':
+            # Electric yellow with glow effect
+            import random
+            glow = 5 + int(3 * (self.anim_frame * 2 - 1))
+            pygame.draw.circle(surface, (255, 255, 100), (x, y), 22 + glow, 2)
+            pygame.draw.circle(surface, self.color, (x, y), 22)
+            # Electric arc lines
+            for i in range(3):
+                angle = self.anim_frame * 2 + i * 2.1
+                ex = x + int(math.cos(angle) * 18)
+                ey = y + int(math.sin(angle) * 18)
+                pygame.draw.line(surface, (255, 255, 200), (x, y), (ex, ey), 2)
+        elif self.name == 'cattail':
+            # Cattail - green stalk with cattail top
+            pygame.draw.circle(surface, self.color, (x, y), 22)
+            # Cattail spike at top
+            pygame.draw.ellipse(surface, (120, 80, 40), (x - 4, y - 35, 8, 18))
+            # Leaves
+            pygame.draw.line(surface, (50, 150, 50), (x, y + 10), (x - 18, y + 30), 3)
+            pygame.draw.line(surface, (50, 150, 50), (x, y + 10), (x + 18, y + 30), 3)
+        elif self.name == 'gloomshroom':
+            # Gloom shroom - dark poisonous mushroom
+            # Cap
+            pygame.draw.circle(surface, (80, 120, 40), (x, y - 5), 22)
+            pygame.draw.circle(surface, (60, 100, 30), (x, y - 5), 22, 2)
+            # Spots
+            pygame.draw.circle(surface, (120, 180, 60), (x - 8, y - 10), 4)
+            pygame.draw.circle(surface, (120, 180, 60), (x + 6, y - 8), 3)
+            pygame.draw.circle(surface, (120, 180, 60), (x, y - 2), 3)
+            # Stem
+            pygame.draw.rect(surface, (180, 160, 140), (x - 6, y + 5, 12, 18))
         elif self.name == 'potatomine':
             if not self.armed:
                 pygame.draw.circle(surface, (101, 67, 33), (x, y), 10)

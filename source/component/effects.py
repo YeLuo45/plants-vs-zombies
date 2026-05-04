@@ -508,3 +508,80 @@ class SteamEffect(Effect):
         for p in self.puffs:
             pygame.draw.circle(surface, (220, 220, 255, alpha),
                              (int(p['x']), int(p['y'])), max(4, int(p['size'])))
+
+
+class GloomShroomSporeExplosion(Effect):
+    """Green poisonous spore cloud - damages zombies in 3x3 area with DoT."""
+    def __init__(self, x, y, grid, row):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.grid = grid
+        self.row = row
+        self.duration = 1.5
+        # Green poisonous puffs
+        self.puffs = []
+        for _ in range(14):
+            self.puffs.append({
+                'x': x + random.uniform(-25, 25),
+                'y': y + random.uniform(-25, 15),
+                'vx': random.uniform(-40, 40),
+                'vy': random.uniform(-80, -30),
+                'size': random.randint(18, 35),
+                'alpha': 200,
+            })
+        # Toxic particles
+        self.particles = []
+        for _ in range(16):
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(80, 180)
+            self.particles.append({
+                'x': x, 'y': y,
+                'vx': math.cos(angle) * speed,
+                'vy': math.sin(angle) * speed - 60,
+                'size': random.randint(3, 6),
+            })
+
+    def update(self, dt):
+        super().update(dt)
+        frac = self.timer / self.duration
+        for p in self.puffs:
+            p['x'] += p['vx'] * dt
+            p['y'] += p['vy'] * dt
+            p['vy'] -= 15 * dt
+            p['alpha'] = max(0, int(200 * (1 - frac)))
+            p['size'] += 12 * dt
+        for s in self.particles:
+            s['x'] += s['vx'] * dt
+            s['y'] += s['vy'] * dt
+            s['vy'] += 180 * dt
+        if self.timer >= self.duration:
+            self.alive = False
+
+    def draw(self, surface):
+        frac = self.timer / self.duration
+        if frac > 0.8:
+            self.alive = False
+            return
+
+        # Green toxic puffs
+        for p in self.puffs:
+            if p['alpha'] > 0:
+                pygame.draw.circle(surface, (80, 160, 40, p['alpha']),
+                                 (int(p['x']), int(p['y'])), max(6, int(p['size'])))
+                pygame.draw.circle(surface, (120, 220, 60, int(p['alpha'] * 0.6)),
+                                 (int(p['x']), int(p['y'])), max(3, int(p['size'] * 0.5)))
+
+        # Toxic particles
+        part_alpha = max(0, int(255 * (1 - frac * 1.5)))
+        for s in self.particles:
+            if part_alpha > 0:
+                pygame.draw.circle(surface, (150, 255, 100, part_alpha),
+                                 (int(s['x']), int(s['y'])), max(1, int(s['size'] * (1 - frac))))
+
+        # Green glow ring
+        if frac < 0.4:
+            glow_alpha = int(120 * (1 - frac / 0.4))
+            glow_r = int(60 + frac * 50)
+            pygame.draw.circle(surface, (100, 255, 100, glow_alpha),
+                             (int(self.x), int(self.y)), glow_r, 3)

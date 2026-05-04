@@ -6,11 +6,12 @@ from source.constants import *
 from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
-from source.component.bullet import Bullet, IceBlastEffect, SunParticle
+from source.component.bullet import Bullet, IceBlastEffect, SunParticle, ElectricArcEffect
 from source.component.effects import (
     ZombieDeathEffect, IceShatterEffect, NewspaperShredEffect,
     CherryBombExplosion, SquashSmashEffect, PlantGrowEffect,
-    WalkingZombieAnimator, SteamEffect, SunPopEffect
+    WalkingZombieAnimator, SteamEffect, SunPopEffect,
+    GloomShroomSporeExplosion
 )
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
@@ -45,6 +46,8 @@ class LevelState:
         self.preview_col = None
         self.ice_blast_effect = None
         self.shake_timer = 0
+        # Poison DoT tracking: zombie -> {'timer': float, 'damage': float, 'tick_interval': float, 'ticks_left': int}
+        self.poison_effects = {}
 
     def get_stats(self):
         elapsed = time_module.time() - self.start_time
@@ -211,6 +214,20 @@ class LevelState:
                             z.apply_slow()
                     b.alive = False
                     break
+            # Spike bullet always hits its target
+            if b.spike and b.hit_done and b.target_x is not None:
+                for z in self.zombies:
+                    if z.dead:
+                        continue
+                    if abs(z.x - b.target_x) < 40:
+                        killed, shred = z.take_damage(b.damage)
+                        if z.dead:
+                            self.zombies_killed += 1
+                            self._spawn_zombie_death(z)
+                        if shred:
+                            self.particles.append(NewspaperShredEffect(z.x, z.y))
+                        break
+                b.hit_done = False  # reset so it only triggers once
             if not b.alive:
                 self.bullets.remove(b)
 
@@ -312,6 +329,95 @@ class LevelState:
                             z.apply_slow()
                             z.apply_slow()  # double slow
                     self.grid.remove_plant(p.row, p.col)
+
+                elif action == 'electric_shot':
+                    # Zapricot: 3x3 electric area attack
+                    cx, cy = p.rect.centerx, p.rect.centery
+                    # Find all zombies within 3x3 grid cells centered on this plant
+                    center_col = p.col
+                    center_row = p.row
+                    targets = []
+                    for z in self.zombies:
+                        if z.dead:
+                            continue
+                        z_col = int((z.x - self.grid.offset_x) / self.grid.cell_w)
+                        z_row = z.row
+                        # Check if within 3x3 around plant
+                        if abs(z_col - center_col) <= 1 and abs(z_row - center_row) <= 1:
+                            targets.append(z)
+                    if targets:
+                        # Spawn electric arc effect from plant to each target
+                        self.particles.append(ElectricArcEffect(cx, cy, [(z.x, z.y) for z in targets]))
+                        # Damage all targets simultaneously
+                        for z in targets:
+                            killed, shred = z.take_damage(p.attack)
+                            if z.dead:
+                                self.zombies_killed += 1
+                                self._spawn_zombie_death(z)
+                            if shred:
+                                self.particles.append(NewspaperShredEffect(z.x, z.y))
+                        self.sound.play('shoot')
+
+                elif action == 'spike_shot':
+                    # Cattail: global targeting - always hits the rightmost (highest x) zombie
+                    rightmost_zombie = None
+                    for z in self.zombies:
+                        if not z.dead:
+                            if rightmost_zombie is None or z.x > rightmost_zombie.x:
+                                rightmost_zombie = z
+                    if rightmost_zombie:
+                        bx = p.rect.centerx
+                        by = p.rect.centery
+                        spike = Bullet(bx, by, p.row, self.grid, spike=True)
+                        # Set arc target to zombie position
+                        spike.set_spike_target(rightmost_zombie.x, rightmost_zombie.y, arc_h=60)
+                        self.bullets.append(spike)
+                        self.sound.play('shoot')
+
+                elif action == 'spore_explode':
+                    # Gloom Shroom: one-time poison spore cloud
+                    cx, cy = p.rect.centerx, p.rect.centery
+                    self.particles.append(GloomShroomSporeExplosion(cx, cy, self.grid, p.row))
+                    self.sound.play('explode')
+                    # Apply poison to zombies in 3x3 area
+                    center_col = p.col
+                    center_row = p.row
+                    for z in self.zombies:
+                        if z.dead:
+                            continue
+                        z_col = int((z.x - self.grid.offset_x) / self.grid.cell_w)
+                        z_row = z.row
+                        if abs(z_col - center_col) <= 1 and abs(z_row - center_row) <= 1:
+                            # Apply poison DoT: 10 damage every 0.5s for 2s = 4 ticks = 40 total
+                            self.poison_effects[z] = {
+                                'timer': 0.0,
+                                'damage': 10,
+                                'tick_interval': 0.5,
+                                'ticks_left': 4,
+                            }
+                            z.poisoned = True
+                    self.grid.remove_plant(p.row, p.col)
+
+        # Process poison DoT effects
+        for z in list(self.poison_effects.keys()):
+            if z.dead:
+                del self.poison_effects[z]
+                continue
+            pe = self.poison_effects[z]
+            pe['timer'] += dt
+            if pe['timer'] >= pe['tick_interval']:
+                pe['timer'] = 0.0
+                if pe['ticks_left'] > 0:
+                    pe['ticks_left'] -= 1
+                    killed, shred = z.take_damage(pe['damage'])
+                    if z.dead:
+                        self.zombies_killed += 1
+                        self._spawn_zombie_death(z)
+                    if shred:
+                        self.particles.append(NewspaperShredEffect(z.x, z.y))
+                    if pe['ticks_left'] <= 0:
+                        del self.poison_effects[z]
+                        z.poisoned = False
 
         # Chomper eating
         for row in range(GRID_ROWS):

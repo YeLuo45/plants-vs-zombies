@@ -9,7 +9,7 @@ class Menubar:
     def __init__(self):
         self.sun = SUN_VALUE
         self.card_panel_h = 100
-        # All 13 plants (8 + torchwood + P2 plants)
+        # All 13 plants + 3 H-plants (16 total, 2 pages of 8)
         self.all_cards = list(PLANTS.keys())
         self.cards_per_page = 8
         self.card_page = 0
