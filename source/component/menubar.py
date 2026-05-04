@@ -1,15 +1,22 @@
 import pygame
 from source.constants import *
 
+MALLET_COST = 25
+MALLET_MAX_USES = 3
+
+
 class Menubar:
     def __init__(self):
         self.sun = SUN_VALUE
         self.card_panel_h = 100
-        self.card_list = list(PLANTS.keys())[:6]
+        self.card_list = list(PLANTS.keys())[:8]
         self.selected = None
         self.shovel_selected = False
         # Per-card cooldown timers (seconds remaining)
         self.cooldowns = {name: 0.0 for name in self.card_list}
+        # Mallet tool
+        self.mallet_selected = False
+        self.mallet_uses = MALLET_MAX_USES
         # Card positions
         self._calc_card_rects()
 
@@ -23,6 +30,8 @@ class Menubar:
         # Shovel rect to the right of cards
         shovel_x = start_x + len(self.card_list) * (CARD_W + CARD_GAP) + 15
         self.shovel_rect = pygame.Rect(shovel_x, CARD_PANEL_Y + 10, SHOVEL_W, SHOVEL_H)
+        # Mallet rect: left of first card
+        self.mallet_rect = pygame.Rect(start_x - 60, CARD_PANEL_Y + 5, 50, 70)
 
     def draw(self, surface):
         # Draw menu bar background
@@ -79,6 +88,9 @@ class Menubar:
                 cd_rect = cd_text.get_rect(center=(cx, cy))
                 surface.blit(cd_text, cd_rect)
 
+        # Draw mallet tool (left of cards)
+        self._draw_mallet(surface)
+
         # Draw shovel
         shovel_color = (180, 100, 50) if self.shovel_selected else BROWN
         pygame.draw.rect(surface, shovel_color, self.shovel_rect)
@@ -87,6 +99,30 @@ class Menubar:
         sx, sy = self.shovel_rect.centerx, self.shovel_rect.centery
         pygame.draw.rect(surface, GRAY, (sx - 5, sy - 20, 10, 25))
         pygame.draw.rect(surface, (160, 100, 50), (sx - 8, sy + 5, 16, 8))
+
+    def _draw_mallet(self, surface):
+        mx, my = self.mallet_rect.centerx, self.mallet_rect.centery
+        is_selected = self.mallet_selected
+
+        # Background
+        bg = (160, 80, 80) if is_selected else (120, 60, 60)
+        pygame.draw.rect(surface, bg, self.mallet_rect)
+        border = (255, 100, 100) if is_selected else (150, 100, 100)
+        pygame.draw.rect(surface, border, self.mallet_rect, 2)
+
+        # Mallet head (brown rectangle)
+        pygame.draw.rect(surface, (139, 90, 43), (mx - 15, my - 22, 30, 18))
+        # Mallet handle
+        pygame.draw.rect(surface, (160, 120, 80), (mx - 4, my - 4, 8, 22))
+        # Uses count
+        uses_font = pygame.font.Font(None, 22)
+        uses_color = (100, 255, 100) if self.mallet_uses > 0 else (150, 50, 50)
+        uses_text = uses_font.render(f'x{self.mallet_uses}', True, uses_color)
+        surface.blit(uses_text, (self.mallet_rect.x + 5, self.mallet_rect.bottom - 18))
+        # Cost
+        cost_color = YELLOW if self.sun >= MALLET_COST else (150, 150, 50)
+        cost_surf = uses_font.render(f'{MALLET_COST}', True, cost_color)
+        surface.blit(cost_surf, (self.mallet_rect.right - 22, self.mallet_rect.bottom - 18))
 
     def update(self, dt):
         # Tick down cooldowns
@@ -105,8 +141,14 @@ class Menubar:
     def is_shovel_at(self, mx, my):
         return self.shovel_rect.collidepoint(mx, my)
 
+    def is_mallet_at(self, mx, my):
+        return self.mallet_rect.collidepoint(mx, my)
+
     def can_afford(self, name):
         return self.sun >= PLANTS[name]['cost']
+
+    def can_use_mallet(self):
+        return self.mallet_uses > 0 and self.sun >= MALLET_COST
 
     def spend(self, name):
         cost = PLANTS[name]['cost']
@@ -114,5 +156,16 @@ class Menubar:
         self.selected = None
         self.cooldowns[name] = PLANTS[name]['cooldown']
 
+    def use_mallet(self):
+        if self.mallet_uses > 0 and self.sun >= MALLET_COST:
+            self.sun -= MALLET_COST
+            self.mallet_uses -= 1
+            self.mallet_selected = False
+            return True
+        return False
+
     def is_ready(self, name):
         return self.cooldowns[name] <= 0
+
+    def add_sun(self, amount):
+        self.sun += amount

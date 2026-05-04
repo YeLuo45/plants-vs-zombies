@@ -2,6 +2,7 @@ import pygame
 import math
 from source.constants import *
 
+
 class Zombie(pygame.sprite.Sprite):
     def __init__(self, name, x, row, grid):
         super().__init__()
@@ -20,23 +21,37 @@ class Zombie(pygame.sprite.Sprite):
         self.w = cfg['w']
         self.h = cfg['h']
         self.x = x
-        self.y = grid.offset_y + row * grid.cell_h + grid.cell_h // 2
+        self.base_y = grid.offset_y + row * grid.cell_h + grid.cell_h // 2
+        self.y = self.base_y
         self.attacking = False
         self.attack_target = None
         self.slow_timer = 0
-        self.pole_jumped = False
         self.dead = False
         self.death_timer = 0
         self.eating = False
         self.eat_anim_timer = 0
-        self.just_bitten = False  # set true when bite occurs, level.py resets
-        # Pole-vaulting zombie state
+        self.just_bitten = False
+        self.pole_jumped = False
+        self.jump_timer = 0
+        self.jumping = False
         self.pole_vaulting = False
         self.pole_vaulting_timer = 0
-        # Animation
         self.anim_frame = 0
         self.anim_timer = 0
-        self.arm_y = 0  # arm raise offset for eating
+        self.arm_y = 0
+        # Shake (when damaged)
+        self.shake_timer = 0
+        self.shake_active = False
+
+        # P2-A zombie states
+        self.newspaper_hp = 100 if name == 'newspaper' else 0
+        self.newspaper_destroyed = False
+        self.panic_timer = 0
+        self.miner_phase = 'walking_right' if name == 'miner' else None
+        self.miner_start_row = row
+        self.has_ladder = True if name == 'ladder' else False
+        self.ladder_placed_plant = None
+        self.walking_over_plants = False
 
     def update(self, dt):
         if self.dead:
@@ -53,76 +68,210 @@ class Zombie(pygame.sprite.Sprite):
             self.slow_timer -= dt
             self.speed = self.base_speed * ICE_SLOW_FACTOR
         else:
-            self.speed = self.base_speed
+            if self.newspaper_destroyed:
+                self.speed = 0.6
+            else:
+                self.speed = self.base_speed
 
-        # Find plant to attack
-        plant_in_way = None
-        for col in range(self.grid.cols):
-            p = self.grid.cells[self.row][col]
-            if p and hasattr(p, 'hp') and p.hp > 0:
-                plant_x = p.rect.centerx
-                if self.x - plant_x < 40 and self.x - plant_x > -40:
-                    plant_in_way = p
-                    break
-                elif self.x <= plant_x:
-                    break
+        # Shake timer update
+        if self.shake_active:
+            self.shake_timer -= dt
+            if self.shake_timer <= 0:
+                self.shake_active = False
+                self.shake_timer = 0
 
-        # Pole-vaulting zombie: jump over first plant (before eating logic)
-        if self.name == 'pole' and not self.pole_jumped and not self.pole_vaulting:
-            # Find first plant to jump over
-            for col in range(self.grid.cols):
-                p = self.grid.cells[self.row][col]
-                if p and hasattr(p, 'hp') and p.hp > 0:
-                    plant_x = p.rect.centerx
-                    if self.x - plant_x < 50 and self.x - plant_x > -10:
-                        # Jump over this plant to the right
-                        self.pole_vaulting = True
-                        self.pole_vaulting_timer = 0.5
-                        # Move past the plant and clear eating state
-                        self.x = plant_x + CELL_WIDTH + 20
-                        plant_in_way = None  # clear so eating logic is skipped
-                        break
-                    elif self.x <= plant_x:
-                        break
+        # Miner zombie
+        if self.name == 'miner':
+            return self._update_miner(dt)
 
-        if self.pole_vaulting:
-            self.pole_vaulting_timer -= dt
-            if self.pole_vaulting_timer <= 0:
-                self.pole_vaulting = False
-                self.pole_jumped = True
-                self.speed = self.base_speed * 1.5  # faster after jump
-            # Don't move or attack during jump
-        elif plant_in_way:
-            self.attacking = True
-            self.eating = True
-            self.attack_target = plant_in_way
-            self.x -= 0  # Stop walking while eating
-            if self.attack_timer >= self.attack_interval:
-                self.attack_timer = 0
-                self.eat_anim_timer = 0
-                self.just_bitten = True
-                dead = plant_in_way.take_damage(self.attack)
-                if dead:
-                    for c in range(self.grid.cols):
-                        if self.grid.cells[self.row][c] == plant_in_way:
-                            self.grid.cells[self.row][c] = None
-                            break
-                    self.attacking = False
-                    self.eating = False
-                    self.attack_target = None
+        # Pole vaulting zombie
+        if self.name == 'pole':
+            return self._update_pole(dt)
+
+        # Newspaper zombie stumble
+        if self.name == 'newspaper':
+            self.panic_timer += dt
+            if self.newspaper_destroyed and self.panic_timer < 0.3:
+                return None
+
+        plant_in_way = self._find_plant_ahead()
+
+        # Ladder zombie
+        if self.has_ladder and plant_in_way and not self.ladder_placed_plant:
+            self.ladder_placed_plant = plant_in_way
+            plant_in_way.laddered = True
+            self.has_ladder = False
+            self.walking_over_plants = True
+
+        if plant_in_way:
+            if hasattr(plant_in_way, 'laddered') and plant_in_way.laddered:
+                self.walking_over_plants = True
+                self.x -= self.speed
+                self.attacking = True
+                self.attack_target = plant_in_way
+                if self.attack_timer >= self.attack_interval:
+                    self.attack_timer = 0
+                    plant_in_way.take_damage(self.attack * 0.3)
+                    if plant_in_way.hp <= 0:
+                        plant_in_way.laddered = False
+                        self.walking_over_plants = False
+                        for c in range(self.grid.cols):
+                            if self.grid.cells[self.row][c] == plant_in_way:
+                                self.grid.cells[self.row][c] = None
+                                break
+                        self.attacking = False
+            else:
+                self.attacking = True
+                self.eating = True
+                self.attack_target = plant_in_way
+                if self.attack_timer >= self.attack_interval:
+                    self.attack_timer = 0
+                    self.eat_anim_timer = 0
+                    self.just_bitten = True
+                    dead = plant_in_way.take_damage(self.attack)
+                    if dead:
+                        for c in range(self.grid.cols):
+                            if self.grid.cells[self.row][c] == plant_in_way:
+                                self.grid.cells[self.row][c] = None
+                                break
+                        self.attacking = False
+                        self.eating = False
+                        self.attack_target = None
         else:
             self.attacking = False
             self.eating = False
+            self.walking_over_plants = False
             self.x -= self.speed
 
         if self.eating:
             self.eat_anim_timer += dt
-            # Arm raises up and down while eating
             self.arm_y = int(5 * (1 if int(self.eat_anim_timer * 6) % 2 == 0 else -1))
 
         if self.x < self.grid.offset_x - 20:
             return 'reached_home'
         return None
+
+    def _find_plant_ahead(self):
+        for col in range(self.grid.cols):
+            p = self.grid.cells[self.row][col]
+            if p and hasattr(p, 'hp') and p.hp > 0:
+                plant_x = p.rect.centerx
+                if self.x - plant_x < 40 and self.x - plant_x > -40:
+                    return p
+                elif self.x <= plant_x:
+                    break
+        return None
+
+    def _update_miner(self, dt):
+        if self.miner_phase == 'walking_right':
+            self.x -= self.speed
+            if self.x >= SCREEN_WIDTH - 20:
+                self.miner_phase = 'digging_down'
+                self.row = self.miner_start_row
+                self.y = self.grid.offset_y + self.row * self.grid.cell_h + self.grid.cell_h // 2
+
+        elif self.miner_phase == 'digging_down':
+            self.row -= 1
+            if self.row < 0:
+                self.row = 0
+                self.miner_phase = 'walking_left'
+                self.y = self.base_y
+            else:
+                self.y = self.grid.offset_y + self.row * self.grid.cell_h + self.grid.cell_h // 2
+
+        elif self.miner_phase == 'walking_left':
+            self.y = self.base_y
+            self.row = 0
+            self.x -= self.speed
+
+        if self.x < self.grid.offset_x - 20:
+            return 'reached_home'
+        return None
+
+    def _update_pole(self, dt):
+        if not self.pole_jumped and not self.jumping:
+            plant = self._find_plant_ahead()
+            if plant:
+                self.jumping = True
+                self.jump_timer = 0
+                self.jump_start_x = self.x
+                self.jump_target_col = plant.col + 1
+
+        if self.jumping:
+            self.jump_timer += dt
+            if self.jump_timer < 0.2:
+                jump_progress = self.jump_timer / 0.2
+                self.y = self.base_y - int(80 * jump_progress)
+            elif self.jump_timer < 0.4:
+                jump_progress = (self.jump_timer - 0.2) / 0.2
+                self.y = self.base_y - int(80 * (1 - jump_progress))
+            else:
+                self.y = self.base_y
+                self.jumping = False
+                self.pole_jumped = True
+                for c in range(self.grid.cols):
+                    p = self.grid.cells[self.row][c]
+                    if p and hasattr(p, 'hp') and p.hp > 0:
+                        if c >= self.jump_target_col:
+                            self.x = p.rect.centerx + 50
+                            break
+                self.speed = self.base_speed
+        else:
+            plant_in_way = self._find_plant_ahead()
+            if plant_in_way:
+                self.attacking = True
+                self.eating = True
+                self.attack_target = plant_in_way
+                if self.attack_timer >= self.attack_interval:
+                    self.attack_timer = 0
+                    self.eat_anim_timer = 0
+                    dead = plant_in_way.take_damage(self.attack)
+                    if dead:
+                        for c in range(self.grid.cols):
+                            if self.grid.cells[self.row][c] == plant_in_way:
+                                self.grid.cells[self.row][c] = None
+                                break
+                        self.attacking = False
+                        self.eating = False
+            else:
+                self.attacking = False
+                self.eating = False
+                self.x -= self.speed
+
+        if self.eating:
+            self.eat_anim_timer += dt
+            self.arm_y = int(5 * (1 if int(self.eat_anim_timer * 6) % 2 == 0 else -1))
+
+        if self.x < self.grid.offset_x - 20:
+            return 'reached_home'
+        return None
+
+    def take_damage(self, dmg):
+        if self.name == 'newspaper' and not self.newspaper_destroyed:
+            self.newspaper_hp -= dmg
+            if self.newspaper_hp <= 0:
+                self.newspaper_destroyed = True
+                self.color = (200, 80, 80)
+                self.panic_timer = 0
+                remaining = abs(self.newspaper_hp)
+                self.hp -= remaining
+                if self.hp <= 0:
+                    self.die()
+                    return True
+                return False
+            return False
+
+        self.hp -= dmg
+        if self.hp > 0:
+            self.shake_active = True
+            self.shake_timer = 0.3
+        if self.hp <= 0:
+            self.die()
+            return True
+        return False
+
+    def apply_slow(self):
+        self.slow_timer = 2.0
 
     def die(self):
         self.dead = True
@@ -130,53 +279,54 @@ class Zombie(pygame.sprite.Sprite):
 
     def draw(self, surface, scroll_x=0, scroll_y=0):
         if self.dead:
-            # Death animation: fade out over 0.5s
             alpha = max(0, 255 - int(self.death_timer * 500))
             if alpha <= 0:
                 return
             x, y = int(self.x - scroll_x), int(self.y - scroll_y)
-            # Draw zombie in darker color with transparency
             temp_surf = pygame.Surface((self.w + 10, self.h + 10), pygame.SRCALPHA)
-            pygame.draw.rect(temp_surf, (*self.color, alpha), 
-                           (5, 5, self.w, self.h))
-            pygame.draw.circle(temp_surf, (180, 180, 180, alpha), 
-                             (self.w // 2 + 5, 5), 12)
+            pygame.draw.rect(temp_surf, (*self.color, alpha), (5, 5, self.w, self.h))
+            pygame.draw.circle(temp_surf, (180, 180, 180, alpha), (self.w // 2 + 5, 5), 12)
             surface.blit(temp_surf, (x - self.w // 2 - 5, y - self.h // 2 - 5))
             return
 
         x, y = int(self.x - scroll_x), int(self.y - scroll_y)
         body_y = y + self.arm_y if self.eating else y
 
+        # Apply shake
+        if self.shake_active:
+            shake_offset = int(math.sin(self.shake_timer * 60) * 5)
+            x += shake_offset
+
+        # Miner digging angle
+        if self.name == 'miner' and self.miner_phase == 'digging_down':
+            temp_surf = pygame.Surface((self.w + 10, self.h + 10), pygame.SRCALPHA)
+            pygame.draw.rect(temp_surf, (*self.color, 255), (5, 5, self.w, self.h))
+            pygame.draw.circle(temp_surf, (180, 180, 180), (self.w // 2 + 5, 5), 12)
+            pygame.draw.line(temp_surf, (150, 100, 50), (self.w + 5, 5), (self.w + 15, -5), 3)
+            surface.blit(temp_surf, (x - self.w // 2 - 5, y - self.h // 2 - 5))
+            return
+
         # Body
         body_rect = pygame.Rect(x - self.w // 2, body_y - self.h // 2, self.w, self.h)
         pygame.draw.rect(surface, self.color, body_rect)
 
-        # Arms (raised while eating, walking animation while walking)
+        # Arms
         if self.eating:
-            # Raised arm
             pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, body_y - self.h // 2 + 5 + self.arm_y, 8, 20))
-            # Lowered arm (dangling)
             pygame.draw.rect(surface, self.color, (x + self.w // 2, body_y - self.h // 2 + 10, 8, 20))
         else:
-            # Walking arm swing + body bob
-            bob = int(2 * (self.anim_frame * 2 - 1))  # ±2 pixel body bob
+            bob = int(2 * (self.anim_frame * 2 - 1))
             arm_swing = 8 if self.anim_frame == 0 else -8
             walking_body_y = body_y + bob
             pygame.draw.rect(surface, self.color, (x - self.w // 2 - 8, walking_body_y - 5 + arm_swing, 8, 20))
             pygame.draw.rect(surface, self.color, (x + self.w // 2, walking_body_y - 5 - arm_swing, 8, 20))
             body_y = walking_body_y
 
-        # Head (follows body bob when walking)
+        # Head
         head_y = y - self.h // 2 - 10 + (self.arm_y if self.eating else bob)
         pygame.draw.circle(surface, (180, 180, 180), (x, head_y), 12)
 
-        # Ice slow indicator
-        if self.slow_timer > 0:
-            pygame.draw.circle(surface, (150, 200, 255), (x, y), 5, 2)
-            # Ice slow glow around body
-            pygame.draw.circle(surface, (150, 200, 255, 100), (x, body_y), self.w // 2 + 5, 2)
-
-        # Zombie type decoration
+        # Type decorations
         if self.name == 'cone':
             pygame.draw.rect(surface, ORANGE, (x - 15, y - self.h // 2 - 25, 30, 15))
         elif self.name == 'bucket':
@@ -184,19 +334,39 @@ class Zombie(pygame.sprite.Sprite):
         elif self.name == 'football':
             pygame.draw.rect(surface, (80, 80, 80), (x - 20, y - self.h // 2 - 30, 40, 25))
         elif self.name == 'pole':
-            # Draw pole if not used
             if not self.pole_jumped:
-                # Draw pole to the right of zombie, angled up
-                pole_x = x + self.w // 2
-                pole_top_y = y - 30
-                pygame.draw.line(surface, (150, 100, 50), (pole_x, y + 10), (pole_x, pole_top_y), 4)
-                pygame.draw.circle(surface, (150, 100, 50), (pole_x, pole_top_y), 5)
-            # Jump arc animation
-            if self.pole_vaulting:
-                jump_progress = 1.0 - (self.pole_vaulting_timer / 0.5)  # 0 to 1
-                arc_y = int(math.sin(jump_progress * math.pi) * 15)
-                body_y -= arc_y
-                head_y -= arc_y
+                if self.jumping:
+                    pygame.draw.line(surface, (139, 90, 43), (x - 30, y - 20), (x + 10, y - 20), 4)
+                else:
+                    pygame.draw.line(surface, (139, 90, 43), (x + self.w // 2, y - 30), (x + self.w // 2 + 25, y - 30), 4)
+        elif self.name == 'newspaper':
+            if not self.newspaper_destroyed:
+                pygame.draw.rect(surface, (230, 220, 200), (x - 25, y - 15, 20, 25))
+                pygame.draw.rect(surface, (200, 200, 180), (x - 25, y - 15, 20, 25), 1)
+                pygame.draw.circle(surface, (180, 180, 180), (x - 2, y - self.h // 2 - 10), 12)
+            else:
+                pygame.draw.circle(surface, (180, 180, 180), (x, y - self.h // 2 - 10), 12)
+                pygame.draw.line(surface, (200, 50, 50), (x - 6, y - self.h // 2 - 14), (x - 2, y - self.h // 2 - 11), 2)
+                pygame.draw.line(surface, (200, 50, 50), (x + 2, y - self.h // 2 - 11), (x + 6, y - self.h // 2 - 14), 2)
+        elif self.name == 'miner':
+            pygame.draw.line(surface, (150, 100, 50), (x - self.w // 2 - 5, y - 10), (x - self.w // 2 - 15, y - 25), 4)
+            pygame.draw.circle(surface, GRAY, (x - self.w // 2 - 15, y - 25), 5)
+        elif self.name == 'ladder':
+            if self.has_ladder:
+                pygame.draw.rect(surface, YELLOW, (x - self.w // 2 + 3, y - self.h // 2 + 2, 6, self.h - 4))
+                for ly in range(y - self.h // 2 + 8, y + self.h // 2 - 2, 10):
+                    pygame.draw.line(surface, (180, 140, 0), (x - self.w // 2 + 3, ly), (x - self.w // 2 + 8, ly), 1)
+
+        # Ice slow indicator
+        if self.slow_timer > 0:
+            pygame.draw.circle(surface, (150, 200, 255), (x, y), 5, 2)
+            pygame.draw.circle(surface, (150, 200, 255, 100), (x, body_y), self.w // 2 + 5, 2)
+
+        # Newspaper panic indicator
+        if self.newspaper_destroyed:
+            panic_font = pygame.font.Font(None, 18)
+            txt = panic_font.render('!!', True, (255, 50, 50))
+            surface.blit(txt, (x - 8, y - self.h // 2 - 40))
 
         # HP bar
         if self.hp < self.max_hp:
@@ -207,15 +377,6 @@ class Zombie(pygame.sprite.Sprite):
             pygame.draw.rect(surface, RED, (bx, by, bar_w, bar_h))
             pygame.draw.rect(surface, GREEN, (bx, by, int(bar_w * self.hp / self.max_hp), bar_h))
 
-    def take_damage(self, dmg):
-        self.hp -= dmg
-        if self.hp <= 0:
-            self.die()
-            return True
-        return False
-
-    def apply_slow(self):
-        self.slow_timer = 2.0
 
 def create_zombie(name, x, row, grid):
     return Zombie(name, x, row, grid)
