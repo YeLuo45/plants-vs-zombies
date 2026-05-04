@@ -1,4 +1,5 @@
 import pygame
+import math
 from source.constants import *
 
 class Zombie(pygame.sprite.Sprite):
@@ -29,6 +30,9 @@ class Zombie(pygame.sprite.Sprite):
         self.eating = False
         self.eat_anim_timer = 0
         self.just_bitten = False  # set true when bite occurs, level.py resets
+        # Pole-vaulting zombie state
+        self.pole_vaulting = False
+        self.pole_vaulting_timer = 0
         # Animation
         self.anim_frame = 0
         self.anim_timer = 0
@@ -63,7 +67,32 @@ class Zombie(pygame.sprite.Sprite):
                 elif self.x <= plant_x:
                     break
 
-        if plant_in_way:
+        # Pole-vaulting zombie: jump over first plant (before eating logic)
+        if self.name == 'pole' and not self.pole_jumped and not self.pole_vaulting:
+            # Find first plant to jump over
+            for col in range(self.grid.cols):
+                p = self.grid.cells[self.row][col]
+                if p and hasattr(p, 'hp') and p.hp > 0:
+                    plant_x = p.rect.centerx
+                    if self.x - plant_x < 50 and self.x - plant_x > -10:
+                        # Jump over this plant to the right
+                        self.pole_vaulting = True
+                        self.pole_vaulting_timer = 0.5
+                        # Move past the plant and clear eating state
+                        self.x = plant_x + CELL_WIDTH + 20
+                        plant_in_way = None  # clear so eating logic is skipped
+                        break
+                    elif self.x <= plant_x:
+                        break
+
+        if self.pole_vaulting:
+            self.pole_vaulting_timer -= dt
+            if self.pole_vaulting_timer <= 0:
+                self.pole_vaulting = False
+                self.pole_jumped = True
+                self.speed = self.base_speed * 1.5  # faster after jump
+            # Don't move or attack during jump
+        elif plant_in_way:
             self.attacking = True
             self.eating = True
             self.attack_target = plant_in_way
@@ -154,6 +183,20 @@ class Zombie(pygame.sprite.Sprite):
             pygame.draw.rect(surface, GRAY, (x - 18, y - self.h // 2 - 28, 36, 20))
         elif self.name == 'football':
             pygame.draw.rect(surface, (80, 80, 80), (x - 20, y - self.h // 2 - 30, 40, 25))
+        elif self.name == 'pole':
+            # Draw pole if not used
+            if not self.pole_jumped:
+                # Draw pole to the right of zombie, angled up
+                pole_x = x + self.w // 2
+                pole_top_y = y - 30
+                pygame.draw.line(surface, (150, 100, 50), (pole_x, y + 10), (pole_x, pole_top_y), 4)
+                pygame.draw.circle(surface, (150, 100, 50), (pole_x, pole_top_y), 5)
+            # Jump arc animation
+            if self.pole_vaulting:
+                jump_progress = 1.0 - (self.pole_vaulting_timer / 0.5)  # 0 to 1
+                arc_y = int(math.sin(jump_progress * math.pi) * 15)
+                body_y -= arc_y
+                head_y -= arc_y
 
         # HP bar
         if self.hp < self.max_hp:

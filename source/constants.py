@@ -60,6 +60,7 @@ PLANTS = {
     'potatomine':  {'cost': 25,  'cooldown': 20, 'hp': 100, 'attack': 999,'interval': 0,  'color': (200, 150, 50), 'w': 60, 'h': 60, 'desc': 'Potato Mine'},
     'chomper':     {'cost': 150, 'cooldown': 7,  'hp': 100, 'attack': 999,'interval': 0,  'color': (0, 200, 100),  'w': 60, 'h': 60, 'desc': 'Chomper'},
     'repeater':    {'cost': 200, 'cooldown': 7,  'hp': 100, 'attack': 20, 'interval': 1.0,'color': (0, 150, 0),    'w': 60, 'h': 60, 'desc': 'Repeater'},
+    'torchwood':   {'cost': 175, 'cooldown': 7,  'hp': 100, 'attack': 0,  'interval': 0,  'color': (139, 69, 19),  'w': 60, 'h': 60, 'desc': 'Torchwood'},
 }
 
 # Zombie definitions

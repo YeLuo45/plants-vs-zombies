@@ -3,13 +3,14 @@ import random
 from source.constants import *
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, row, grid, ice=False):
+    def __init__(self, x, y, row, grid, ice=False, fire=False):
         super().__init__()
         self.x = x
         self.y = y
         self.row = row
         self.grid = grid
         self.ice = ice
+        self.fire = fire
         self.speed = BULLET_SPEED
         self.damage = BULLET_DAMAGE
         self.radius = 8
@@ -22,10 +23,17 @@ class Bullet(pygame.sprite.Sprite):
             self.alive = False
 
     def draw(self, surface, scroll_x=0, scroll_y=0):
-        color = (100, 200, 255) if self.ice else (0, 200, 0)
+        if self.fire:
+            color = (255, 100, 0)
+        elif self.ice:
+            color = (100, 200, 255)
+        else:
+            color = (0, 200, 0)
         pygame.draw.circle(surface, color, (int(self.x - scroll_x), int(self.y - scroll_y)), self.radius)
         if self.ice:
             pygame.draw.circle(surface, (200, 230, 255), (int(self.x - scroll_x), int(self.y - scroll_y)), self.radius - 3)
+        elif self.fire:
+            pygame.draw.circle(surface, (255, 200, 0), (int(self.x - scroll_x), int(self.y - scroll_y)), self.radius - 3)
 
     def check_collision(self, zombies):
         for z in zombies:

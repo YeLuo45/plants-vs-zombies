@@ -47,7 +47,7 @@ class Plant(pygame.sprite.Sprite):
                 return 'produce_sun'
         if self.name == 'potatomine' and not self.armed:
             self.armed_timer += dt
-            if self.armed_timer >= 3.0:
+            if self.armed_timer >= 5.0:
                 self.armed = True
         if self.name == 'cherrybomb':
             self.explode_timer += dt
@@ -90,7 +90,29 @@ class Plant(pygame.sprite.Sprite):
         x -= scroll_x
         y -= scroll_y
 
-        pygame.draw.circle(surface, self.color, (int(x), int(y)), 25)
+        if self.name == 'torchwood':
+            # Draw log body
+            pygame.draw.rect(surface, (101, 67, 33), (int(x) - 20, int(y) - 15, 40, 30))
+            # Fire on top
+            import random
+            for i in range(3):
+                flame_h = 15 + random.randint(0, 10)
+                flame_x = int(x) - 12 + i * 12
+                flame_y = int(y) - 15
+                pygame.draw.circle(surface, (255, 100 + i * 30, 0), (flame_x, flame_y), 8)
+                pygame.draw.circle(surface, (255, 200, 0), (flame_x, flame_y + 3), 5)
+        elif self.name == 'potatomine':
+            if not self.armed:
+                # Underground: small brown mound
+                pygame.draw.circle(surface, (101, 67, 33), (int(x), int(y)), 10)
+            else:
+                # Armed: potato shape
+                pygame.draw.ellipse(surface, (205, 165, 50), (int(x) - 15, int(y) - 10, 30, 20))
+                # Eyes
+                pygame.draw.circle(surface, (0, 0, 0), (int(x) - 5, int(y) - 3), 3)
+                pygame.draw.circle(surface, (0, 0, 0), (int(x) + 5, int(y) - 3), 3)
+        else:
+            pygame.draw.circle(surface, self.color, (int(x), int(y)), 25)
         if self.hp < self.max_hp:
             bar_w = 40
             bar_h = 5

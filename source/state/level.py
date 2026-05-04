@@ -6,6 +6,7 @@ from source.component.plant import create_plant
 from source.component.zombie import create_zombie
 from source.component.bullet import Bullet, ExplosionEffect, SunParticle, HitParticle, BiteParticle
 from source.component.menubar import Menubar
+from source.component.sound_manager import SoundManager
 
 class LevelState:
     def __init__(self, screen):
@@ -33,6 +34,7 @@ class LevelState:
         # Lawn mowers (one per row, at left edge of lawn)
         self.mowers = [LawnMower(GRID_OFFSET_X - 30, GRID_OFFSET_Y + r * CELL_HEIGHT + CELL_HEIGHT // 2)
                        for r in range(GRID_ROWS)]
+        self.sound = SoundManager.get_instance()
 
     def start_wave(self, wave_idx):
         wave = WAVES[wave_idx]
@@ -77,6 +79,7 @@ class LevelState:
             x = random.randint(GRID_OFFSET_X, GRID_OFFSET_X + GRID_COLS * CELL_WIDTH)
             y = random.randint(GRID_OFFSET_Y, GRID_OFFSET_Y + GRID_ROWS * CELL_HEIGHT)
             self.sun_particles.append(SunParticle(x, y))
+            self.sound.play('sun_appear')
 
         for sp in self.sun_particles[:]:
             sp.update(dt)
@@ -94,20 +97,35 @@ class LevelState:
                 # Zombie reaches the mower position
                 if z.x <= GRID_OFFSET_X - 10 and not mower.activated and mower.alive:
                     mower.trigger()
+                    self.sound.play('lawnmower')
                 # Zombie drives past mower and reaches home
                 if z.x < GRID_OFFSET_X - 60:
                     self.game_over = True
 
             result = z.update(dt)
+            if z.dead and z.death_timer > 0 and z.death_timer <= dt * 2:
+                self.sound.play('zombie_groan')
             if z.dead and z.death_timer > 0.6:
                 self.zombies.remove(z)
-            # Bite particle effect
+            # Bite particle effect + chomp sound
             if z.just_bitten and z.attack_target:
                 self.particles.append(BiteParticle(z.attack_target.rect.centerx, z.attack_target.rect.centery))
+                self.sound.play('chomper')
                 z.just_bitten = False
 
         for b in self.bullets[:]:
             b.update(dt)
+            # Torchwood: upgrade passing bullets to fire
+            if not b.fire and not b.ice:
+                for row_check in range(GRID_ROWS):
+                    for col_check in range(GRID_COLS):
+                        p = self.grid.cells[row_check][col_check]
+                        if p and p.name == 'torchwood' and p.row == b.row:
+                            # Check if bullet is passing through torchwood cell
+                            torchwood_x = p.rect.centerx
+                            if b.x >= torchwood_x - 5:
+                                b.fire = True
+                                b.damage = BULLET_DAMAGE * 2
             # Bullet-zombie collision
             for z in self.zombies:
                 if z.dead:
@@ -119,6 +137,7 @@ class LevelState:
                         if b.ice:
                             z.apply_slow()
                         self.particles.append(HitParticle(z.x, z.y, b.ice))
+                        self.sound.play('zombie_hit')
                         b.alive = False
                         break
             if not b.alive:
@@ -138,6 +157,7 @@ class LevelState:
                         x = p.rect.centerx + random.randint(-20, 20)
                         y = p.rect.centery - 20
                         self.sun_particles.append(SunParticle(x, y))
+                        self.sound.play('sun_appear')
                     elif action == 'shoot':
                         bx = p.rect.right
                         by = p.rect.centery
@@ -145,14 +165,31 @@ class LevelState:
                         shots = 2 if p.name == 'repeater' else 1
                         for _ in range(shots):
                             self.bullets.append(Bullet(bx, by, row, self.grid, ice))
+                        self.sound.play('shoot')
                     elif action == 'explode':
                         cx, cy = p.rect.centerx, p.rect.centery
                         self.particles.append(ExplosionEffect(cx, cy))
                         self.trigger_shake(10, 0.3)
+                        self.sound.play('explode')
                         for z in self.zombies[:]:
                             if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
                                 z.take_damage(999)
                         self.grid.remove_plant(p.row, p.col)
+                    # Potato mine: armed mines explode on zombie contact
+                    if p.name == 'potatomine' and p.armed:
+                        for z in self.zombies:
+                            if z.row == p.row and not z.dead:
+                                if abs(z.x - p.rect.centerx) < 40:
+                                    cx, cy = p.rect.centerx, p.rect.centery
+                                    self.particles.append(ExplosionEffect(cx, cy))
+                                    self.trigger_shake(6, 0.2)
+                                    self.sound.play('explode')
+                                    for z2 in self.zombies[:]:
+                                        if z2.row == p.row and abs(z2.x - cx) < 40:
+                                            z2.take_damage(999)
+                                    self.grid.remove_plant(p.row, p.col)
+                                    break
+                        continue  # skip further plant update for this potatomine
 
         for row in range(GRID_ROWS):
             for col in range(GRID_COLS):
@@ -199,6 +236,7 @@ class LevelState:
             dy = my - sp.y
             if dx * dx + dy * dy < 400:
                 self.menubar.add_sun(25)
+                self.sound.play('sun_collect')
                 self.sun_particles.remove(sp)
                 return
 
@@ -208,6 +246,7 @@ class LevelState:
                 plant = create_plant(self.menubar.selected, row, col, self.grid)
                 self.grid.place_plant(plant, row, col)
                 self.menubar.spend(self.menubar.selected)
+                self.sound.play('plant')
 
     def draw(self, surface):
         # Apply screen shake as scroll offset
