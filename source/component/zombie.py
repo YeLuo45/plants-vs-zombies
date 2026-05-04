@@ -52,6 +52,9 @@ class Zombie(pygame.sprite.Sprite):
         self.has_ladder = True if name == 'ladder' else False
         self.ladder_placed_plant = None
         self.walking_over_plants = False
+        # Football helmet HP (separate from body HP)
+        self.helmet_hp = 200 if name == 'football' else 0
+        self.max_helmet_hp = 200 if name == 'football' else 0
 
     def update(self, dt):
         if self.dead:
@@ -257,9 +260,19 @@ class Zombie(pygame.sprite.Sprite):
                 self.hp -= remaining
                 if self.hp <= 0:
                     self.die()
-                    return True
-                return False
-            return False
+                    return (True, True)   # (zombie_dead, newspaper_destroyed)
+                return (False, True)    # (zombie_not_dead, newspaper_destroyed)
+            return (False, False)
+
+        # Football helmet absorbs damage first
+        if self.name == 'football' and self.helmet_hp > 0:
+            self.helmet_hp -= dmg
+            self.shake_active = True
+            self.shake_timer = 0.2
+            if self.helmet_hp <= 0:
+                self.helmet_hp = 0
+                # Helmet destroyed — flash and continue
+            return (False, False)
 
         self.hp -= dmg
         if self.hp > 0:
@@ -267,8 +280,8 @@ class Zombie(pygame.sprite.Sprite):
             self.shake_timer = 0.3
         if self.hp <= 0:
             self.die()
-            return True
-        return False
+            return (True, False)
+        return (False, False)
 
     def apply_slow(self):
         self.slow_timer = 2.0
@@ -332,7 +345,15 @@ class Zombie(pygame.sprite.Sprite):
         elif self.name == 'bucket':
             pygame.draw.rect(surface, GRAY, (x - 18, y - self.h // 2 - 28, 36, 20))
         elif self.name == 'football':
-            pygame.draw.rect(surface, (80, 80, 80), (x - 20, y - self.h // 2 - 30, 40, 25))
+            helmet_y = y - self.h // 2 - 30
+            if self.helmet_hp > self.max_helmet_hp * 0.5:
+                pygame.draw.rect(surface, (80, 80, 80), (x - 20, helmet_y, 40, 25))
+            elif self.helmet_hp > 0:
+                # Cracked helmet
+                pygame.draw.rect(surface, (80, 80, 80), (x - 20, helmet_y, 40, 25))
+                pygame.draw.line(surface, (40, 40, 40), (x - 10, helmet_y + 2), (x, helmet_y + 20), 2)
+                pygame.draw.line(surface, (40, 40, 40), (x + 5, helmet_y + 5), (x - 3, helmet_y + 18), 2)
+            # else: helmet destroyed — no helmet drawn, body takes hits
         elif self.name == 'pole':
             if not self.pole_jumped:
                 if self.jumping:

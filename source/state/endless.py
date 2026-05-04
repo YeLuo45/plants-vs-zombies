@@ -6,6 +6,7 @@ from source.component.map import Grid
 from source.component.plant import create_plant
 from source.component.zombie import create_zombie
 from source.component.bullet import Bullet, ExplosionEffect, IceBlastEffect, SunParticle
+from source.component.effects import CherryBombExplosion, NewspaperShredEffect, SquashSmashEffect
 from source.component.menubar import Menubar
 from source.component.sound_manager import SoundManager
 from source.state.achievements import AchievementManager
@@ -270,29 +271,35 @@ class EndlessState:
 
                 elif action == 'explode':
                     cx, cy = p.rect.centerx, p.rect.centery
-                    self.particles.append(ExplosionEffect(cx, cy))
+                    is_potatomine = (p.name == 'potatomine')
+                    radius = 80 if is_potatomine else 120
+                    self.particles.append(CherryBombExplosion(cx, cy, self.grid, p.row))
                     self.sound.play('explode')
                     for z in self.zombies[:]:
-                        if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
-                            z.take_damage(999)
+                        if abs(z.x - cx) < radius and abs(z.y - cy) < radius * 0.8:
+                            _, shred = z.take_damage(999)
                             if z.dead:
                                 self.zombies_killed += 1
                                 self.achievements.on_zombie_killed()
+                            if shred:
+                                self.particles.append(NewspaperShredEffect(z.x, z.y))
                     self.grid.remove_plant(p.row, p.col)
 
                 elif action == 'squash_damage':
                     cx = p.rect.centerx
                     cy = p.rect.centery
-                    self.particles.append(ExplosionEffect(cx, cy))
+                    self.particles.append(SquashSmashEffect(cx, cy))
                     self.sound.play('explode')
                     for z in self.zombies[:]:
                         if z.row == p.row:
                             dist = abs(z.x - cx)
                             if dist < 80:
-                                z.take_damage(999)
+                                _, shred = z.take_damage(999)
                                 if z.dead:
                                     self.zombies_killed += 1
                                     self.achievements.on_zombie_killed(killed_by='squash')
+                                if shred:
+                                    self.particles.append(NewspaperShredEffect(z.x, z.y))
                     self.grid.remove_plant(p.row, p.col)
 
                 elif action == 'ice_blast':
@@ -458,8 +465,10 @@ class LawnMower:
         for z in level.zombies[:]:
             if z.row == self._get_row() and not z.dead:
                 if abs(z.x - self.x) < 35:
-                    z.take_damage(999)
+                    _, shred = z.take_damage(999)
                     level.zombies_killed += 1
+                    if shred:
+                        level.particles.append(NewspaperShredEffect(z.x, z.y))
 
     def _get_row(self):
         return int((self.y - GRID_OFFSET_Y) // CELL_HEIGHT)

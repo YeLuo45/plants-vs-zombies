@@ -179,22 +179,34 @@ class LevelState:
                             z2_dist = abs(b.x - z2.x)
                             z2_row = abs(z2.row - b.row)
                             if z2_dist < MELON_SPLASH_RADIUS and z2_row <= 1:
-                                killed = z2.take_damage(b.damage)
+                                z2.killed, shred = z2.take_damage(b.damage)
                                 if z2.dead:
                                     self.zombies_killed += 1
                                     self._spawn_zombie_death(z2)
+                                if shred:
+                                    self.particles.append(NewspaperShredEffect(z2.x, z2.y))
+                                    self.sound.play('explode')
                                 if b.ice:
                                     z2.apply_slow()
-                        z.killed = z.take_damage(b.damage)
+                        z.killed, shred = z.take_damage(b.damage)
+                        if z.dead:
+                            self.zombies_killed += 1
+                            self._spawn_zombie_death(z)
+                        if shred:
+                            self.particles.append(NewspaperShredEffect(z.x, z.y))
+                            self.sound.play('explode')
                         if b.ice:
                             z.apply_slow()
                     else:
-                        killed = z.take_damage(b.damage)
+                        killed, shred = z.take_damage(b.damage)
                         if z.dead:
                             self.zombies_killed += 1
                             self._spawn_zombie_death(z)
                         elif b.fire:
                             self.sound.play('zombie_hit')
+                        if shred:
+                            self.particles.append(NewspaperShredEffect(z.x, z.y))
+                            self.sound.play('explode')  # angry newspaper roar
                         if b.ice:
                             z.apply_slow()
                     b.alive = False
@@ -257,17 +269,21 @@ class LevelState:
                         self.sound.play('explode')
                         for z in self.zombies[:]:
                             if abs(z.x - cx) < 80 and abs(z.y - cy) < 60:
-                                z.take_damage(999)
+                                _, shred = z.take_damage(999)
                                 if z.dead:
                                     self.zombies_killed += 1
+                                if shred:
+                                    self.particles.append(NewspaperShredEffect(z.x, z.y))
                     else:
                         self.particles.append(CherryBombExplosion(cx, cy, self.grid, p.row))
                         self.sound.play('explode')
                         for z in self.zombies[:]:
                             if abs(z.x - cx) < 120 and abs(z.y - cy) < 100:
-                                z.take_damage(999)
+                                _, shred = z.take_damage(999)
                                 if z.dead:
                                     self.zombies_killed += 1
+                                if shred:
+                                    self.particles.append(NewspaperShredEffect(z.x, z.y))
                     self.grid.remove_plant(p.row, p.col)
 
                 elif action == 'squash_damage':
@@ -280,9 +296,11 @@ class LevelState:
                         if z.row == p.row:
                             dist = abs(z.x - cx)
                             if dist < 80:
-                                z.take_damage(999)
+                                _, shred = z.take_damage(999)
                                 if z.dead:
                                     self.zombies_killed += 1
+                                if shred:
+                                    self.particles.append(NewspaperShredEffect(z.x, z.y))
                     self.grid.remove_plant(p.row, p.col)
 
                 elif action == 'ice_blast':
@@ -333,9 +351,11 @@ class LevelState:
                     if abs(dx) < z.w // 2 + 10 and abs(dy) < z.h // 2 + 10:
                         # Smash zombie!
                         if self.menubar.use_mallet():
-                            z.take_damage(9999)
+                            _, shred = z.take_damage(9999)
                             if z.dead:
                                 self.zombies_killed += 1
+                            if shred:
+                                self.particles.append(NewspaperShredEffect(z.x, z.y))
                             # Mallet smash effect
                             self.particles.append(MalletSmashEffect(z.x, z.y))
                             self.sound.play('explode')
@@ -536,8 +556,10 @@ class LawnMower:
         for z in level.zombies[:]:
             if z.row == self._get_row() and not z.dead:
                 if abs(z.x - self.x) < 35:
-                    z.take_damage(999)
+                    _, shred = z.take_damage(999)
                     level.zombies_killed += 1
+                    if shred:
+                        level.particles.append(NewspaperShredEffect(z.x, z.y))
 
     def _get_row(self):
         return int((self.y - GRID_OFFSET_Y) // CELL_HEIGHT)
