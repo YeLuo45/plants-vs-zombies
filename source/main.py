@@ -5,6 +5,7 @@ from source.constants import *
 from source.state.level import LevelState
 from source.state.achievements import AchievementManager
 from source.state.save_system import SaveManager, SettingsState, LoadScreen
+from source.state.leaderboard import LeaderboardManager
 from source.component.sound_manager import SoundManager
 
 
@@ -23,6 +24,7 @@ class Game:
         self.sound = SoundManager.get_instance()
         self.ach = AchievementManager.get_instance()
         self.sm = SaveManager.get_instance()
+        self.leaderboard = LeaderboardManager.get_instance()
         self.font_large = pygame.font.Font(None, 72)
         self.font_medium = pygame.font.Font(None, 48)
         self.font_small = pygame.font.Font(None, 36)
@@ -36,6 +38,7 @@ class Game:
         self.load_screen = None
         self.pending_mode = None  # mode to start after load
         self.save_enabled = True  # can save current game
+        self.show_leaderboard = False  # for endless game over screen
 
     def _build_menu_buttons(self):
         bw, bh = 200, 55
@@ -184,11 +187,17 @@ class Game:
                 self.sound.play('click')
 
         elif self.state in ('gameover', 'victory'):
+            is_endless_ev = bool(self.endless and hasattr(self.endless, 'wave_index'))
+            if self.show_leaderboard and is_endless_ev:
+                if self.leaderboard.handle_click(mx, my):
+                    self.show_leaderboard = False
+                    return
             if self.end_restart_btn.collidepoint(mx, my):
                 self.sound.stop_music()
                 self._restart_current_mode()
             elif self.end_menu_btn.collidepoint(mx, my):
                 self.state = 'menu'
+                self.show_leaderboard = False
                 self.sound.play('click')
 
     def _toggle_fullscreen(self):
@@ -295,6 +304,7 @@ class Game:
         self._restore_level(data)
 
     def _restart_current_mode(self):
+        self.show_leaderboard = False
         mode = 'adventure'
         if self.endless:
             mode = 'endless'
@@ -327,6 +337,7 @@ class Game:
             if self.endless.game_over:
                 self.state = 'gameover'
                 self.sound.play('gameover')
+                self.show_leaderboard = True
         elif self.lawnbowling:
             if self.lawnbowling.game_over:
                 self.state = 'gameover'
@@ -462,6 +473,7 @@ class Game:
 
         cs = self.current_state
         lines = []
+        is_endless = bool(self.endless and hasattr(self.endless, 'wave_index'))
         if self.level and hasattr(self.level, 'get_stats'):
             stats = self.level.get_stats()
             lines = [
@@ -470,8 +482,19 @@ class Game:
                 f"Plants: {stats['plants_placed']}",
                 f"Time: {stats['time_elapsed']}",
             ]
-        elif self.endless and hasattr(self.endless, 'wave_index'):
-            lines = [f"Waves Survived: {self.endless.wave_index}"]
+        elif is_endless:
+            stats = self.endless.get_stats()
+            is_record = self.leaderboard.is_new_record(stats['wave_index']) if hasattr(self, 'leaderboard') else False
+            lines = [
+                f"Waves Survived: {stats['wave_index']}",
+                f"Kills: {stats['zombies_killed']}",
+                f"Plants: {stats['plants_placed']}",
+                f"Time: {stats['time_elapsed']}",
+            ]
+            if is_record:
+                record_surf = self.font_medium.render('NEW RECORD!', True, (255, 215, 0))
+                record_rect = record_surf.get_rect(center=(SCREEN_WIDTH // 2, 180))
+                self.screen.blit(record_surf, record_rect)
         elif self.lawnbowling and hasattr(self.lawnbowling, 'wave_index'):
             lines = [
                 f"Waves: {self.lawnbowling.wave_index}/10",
@@ -484,6 +507,10 @@ class Game:
             surf = self.font_medium.render(line, True, WHITE)
             r = surf.get_rect(center=(SCREEN_WIDTH // 2, 200 + i * 45))
             self.screen.blit(surf, r)
+
+        # Show leaderboard for endless mode
+        if self.show_leaderboard and is_endless:
+            self.leaderboard.draw(self.screen)
 
         mx, my = pygame.mouse.get_pos()
         self.draw_button(self.end_restart_btn, 'Play Again', self.end_restart_btn.collidepoint(mx, my))
